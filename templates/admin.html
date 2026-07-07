@@ -2,10 +2,38 @@
 {% block title %}LexMacedonica — Администрација{% endblock %}
 
 {% block content %}
-<section class="placeholder-page">
-    <h1>Административни алатки</h1>
-    <p>Алатки за правна администрација — прва на ред: <strong>анонимизација</strong> на документи
-    (имиња, ЕМБГ, адреси), со прикажано резонирање на моделот.</p>
-    <div class="coming-soon">Наскоро — во изработка 🛠️</div>
+<section class="admin-wrap">
+    <div class="page-intro">
+        <h1>Анонимизација на документи</h1>
+        <p>Залепете текст од документ — алатката ги заменува личните податоци (имиња, ЕМБГ,
+           адреси, телефони, фирми) и покажува што и зошто е заменето.</p>
+    </div>
+
+    <form id="anon-form">
+        <textarea id="anon-input" rows="10" required
+            placeholder="Залепете го текстот на документот овде..."></textarea>
+        <button type="submit" id="anon-btn" class="smk-button">Анонимизирај</button>
+    </form>
+
+    <div id="anon-result" class="anon-result" style="display:none">
+        <details class="reasoning" id="anon-reasoning-box">
+            <summary>🧠 Резонирање на моделот</summary>
+            <div class="reasoning-body" id="anon-reasoning"></div>
+        </details>
+
+        <h3>Анонимизиран текст</h3>
+        <div class="anon-output" id="anon-output"></div>
+        <button id="anon-copy" class="smk-button secondary">Копирај</button>
+
+        <h3>Извршени замени</h3>
+        <table class="anon-table">
+            <thead><tr><th>Оригинал</th><th>Замена</th><th>Метод</th></tr></thead>
+            <tbody id="anon-replacements"></tbody>
+        </table>
+    </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
 {% endblock %}

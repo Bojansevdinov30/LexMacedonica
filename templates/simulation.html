@@ -2,10 +2,22 @@
 {% block title %}LexMacedonica — Симулација на судење{% endblock %}
 
 {% block content %}
-<section class="placeholder-page">
-    <h1>Симулација на судење</h1>
-    <p>Внесете сценарио, а четири АИ агенти — <strong>судија</strong>, <strong>адвокат на тужителот</strong>,
-    <strong>адвокат на тужениот</strong> и <strong>наратор</strong> — ќе го одиграат случајот пред вас.</p>
-    <div class="coming-soon">Наскоро — во изработка 🛠️</div>
+<section class="sim-wrap">
+    <div class="page-intro">
+        <h1>Симулација на судење</h1>
+        <p>Опишете случај, а четири АИ агенти — судија, двајца адвокати и наратор — ќе го одиграат пред вас.</p>
+    </div>
+
+    <form id="sim-form" class="chat-input">
+        <textarea id="sim-scenario" rows="3" required
+            placeholder="Опишете го случајот... (пр. „Работничка е отпуштена еден ден откако објавила на социјалните мрежи дека е бремена...“)"></textarea>
+        <button type="submit" id="sim-start">Почни судење</button>
+    </form>
+
+    <div id="courtroom" class="courtroom"></div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/simulation.js"></script>
 {% endblock %}

@@ -198,6 +198,119 @@ body {
 .chat-input button:hover { background: var(--navy-dark); }
 .chat-input button:disabled { background: var(--muted); cursor: wait; }
 
+/* ---------- Page intros ---------- */
+.page-intro { text-align: center; margin: 0.5rem 0 1rem; }
+.page-intro h1 { color: var(--navy); font-size: 1.5rem; }
+.page-intro p { color: var(--muted); max-width: 620px; margin: 0.4rem auto 0; }
+
+/* ---------- Simulation ---------- */
+.sim-wrap { display: flex; flex-direction: column; gap: 1rem; }
+
+.courtroom { display: flex; flex-direction: column; gap: 0.8rem; }
+
+.sim-turn {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem 1.1rem;
+    box-shadow: var(--shadow);
+    max-width: 88%;
+}
+
+.sim-turn .sim-role { font-weight: 700; margin-bottom: 0.3rem; }
+.sim-turn .sim-text { line-height: 1.55; white-space: pre-wrap; }
+
+.sim-narrator { align-self: center; border-top: 3px solid var(--muted); font-style: italic; }
+.sim-plaintiff { align-self: flex-start; border-left: 4px solid var(--gold); }
+.sim-plaintiff .sim-role { color: #8a6a00; }
+.sim-defendant { align-self: flex-end; border-right: 4px solid var(--red); }
+.sim-defendant .sim-role { color: var(--red); }
+.sim-judge { align-self: center; border-top: 4px solid var(--navy); background: #f2f6fb; }
+.sim-judge .sim-role { color: var(--navy); }
+
+.sim-status { text-align: center; color: var(--muted); font-style: italic; font-size: 0.9rem; }
+
+/* ---------- Lawyer ---------- */
+.mode-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 0.5rem 1rem;
+    font-size: 0.92rem;
+    align-self: center;
+}
+
+.mode-toggle label { cursor: pointer; color: var(--navy); font-weight: 600; }
+
+.reasoning {
+    background: #f6f3ea;
+    border: 1px dashed var(--gold);
+    border-radius: 8px;
+    padding: 0.45rem 0.8rem;
+    margin-bottom: 0.7rem;
+    font-size: 0.9rem;
+}
+
+.reasoning summary { cursor: pointer; font-weight: 600; color: #8a6a00; }
+.reasoning-body { margin-top: 0.5rem; white-space: pre-wrap; color: var(--text); }
+
+.sources { margin-top: 0.7rem; font-size: 0.85rem; }
+.source-chip {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    padding: 0.15rem 0.6rem;
+    margin: 0.15rem 0.15rem 0 0;
+}
+
+/* ---------- Admin / anonymization ---------- */
+.admin-wrap { display: flex; flex-direction: column; gap: 1rem; }
+
+.admin-wrap textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.8rem;
+    font: inherit;
+    resize: vertical;
+    box-shadow: var(--shadow);
+}
+
+.smk-button {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    font: inherit;
+    font-weight: 600;
+    padding: 0.6rem 1.6rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 0.6rem;
+}
+
+.smk-button:hover { background: var(--navy-dark); }
+.smk-button:disabled { background: var(--muted); cursor: wait; }
+.smk-button.secondary { background: var(--gold); }
+
+.anon-result h3 { color: var(--navy); margin: 1rem 0 0.4rem; }
+
+.anon-output {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.9rem;
+    white-space: pre-wrap;
+    box-shadow: var(--shadow);
+}
+
+.anon-table { width: 100%; border-collapse: collapse; background: var(--card); box-shadow: var(--shadow); }
+.anon-table th, .anon-table td { border: 1px solid var(--border); padding: 0.45rem 0.7rem; text-align: left; font-size: 0.9rem; }
+.anon-table th { background: var(--bg); color: var(--navy); }
+
 /* ---------- Placeholder pages ---------- */
 .placeholder-page {
     background: var(--card);

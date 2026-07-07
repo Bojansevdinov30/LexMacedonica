@@ -44,6 +44,20 @@ class ChatRequest(BaseModel):
     question: str
 
 
+class LawyerRequest(BaseModel):
+    question: str
+    mode: str = "laws"   # "laws" = закони + пракса, "cases" = само пракса
+
+
+class SimTurnRequest(BaseModel):
+    scenario: str
+    history: list[dict] = []
+
+
+class AnonymizeRequest(BaseModel):
+    text: str
+
+
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     """Main assistant endpoint (sync `def` on purpose: FastAPI runs it in a
@@ -67,3 +81,40 @@ def chat(req: ChatRequest):
                       "Проверете дали е изграден индексот (build_index).",
             "probability": None, "cases": [],
         }
+
+
+@app.post("/api/lawyer")
+def lawyer_api(req: LawyerRequest):
+    try:
+        from app.lawyer.rag import lawyer_answer
+        return lawyer_answer(req.question, req.mode)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"reasoning": "", "sources": [], "mode": req.mode,
+                "answer": f"Грешка при обработката: {type(e).__name__}."}
+
+
+@app.post("/api/simulate/turn")
+def simulate_turn(req: SimTurnRequest):
+    try:
+        from app.agents.simulation import next_turn
+        turn = next_turn(req.scenario, req.history)
+        return turn if turn else {"done": True}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"role": "narrator", "name": "Систем", "icon": "⚠️",
+                "text": f"Грешка: {type(e).__name__}", "done": True}
+
+
+@app.post("/api/anonymize")
+def anonymize_api(req: AnonymizeRequest):
+    try:
+        from app.admin.anonymize import anonymize
+        return anonymize(req.text)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"anonymized": "", "replacements": [],
+                "reasoning": f"Грешка при обработката: {type(e).__name__}."}

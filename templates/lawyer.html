@@ -2,10 +2,28 @@
 {% block title %}LexMacedonica — За адвокати{% endblock %}
 
 {% block content %}
-<section class="placeholder-page">
-    <h1>Асистент за адвокати</h1>
-    <p>Специјализирана помош за правници — одговори засновани првенствено на <strong>законите</strong>
-    (со точни цитати по член), со прикажано резонирање на моделот.</p>
-    <div class="coming-soon">Наскоро — во изработка 🛠️</div>
+<section class="chat-wrap">
+    <div class="page-intro">
+        <h1>Асистент за адвокати</h1>
+        <p>Одговори засновани на законите со точни цитати по член, поткрепени со судска пракса.
+           Резонирањето на моделот е видливо.</p>
+    </div>
+
+    <div class="mode-toggle">
+        <label><input type="radio" name="mode" value="laws" checked> Закони + судска пракса</label>
+        <label><input type="radio" name="mode" value="cases"> Само судска пракса</label>
+    </div>
+
+    <div class="chat-window" id="lawyer-window"></div>
+
+    <form class="chat-input" id="lawyer-form">
+        <textarea id="lawyer-text" rows="2" required
+            placeholder="Правно прашање... (пр. „Кои се роковите за приговор против отказ според ЗРО?“)"></textarea>
+        <button type="submit" id="lawyer-send">Прашај</button>
+    </form>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/lawyer.js"></script>
 {% endblock %}
