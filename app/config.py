@@ -21,7 +21,10 @@ DATA_DIR = ROOT_DIR / "data"
 RAW_PDF_DIR = DATA_DIR / "raw_pdfs"
 TXT_DIR = DATA_DIR / "txt"
 RAW_HTML_DIR = DATA_DIR / "raw_html"
-CHROMA_DIR = DATA_DIR / "chroma"
+FAISS_INDEX_PATH = DATA_DIR / "faiss.index"     # HNSW index (search structure)
+EMBEDDINGS_PATH = DATA_DIR / "embeddings.npz"   # raw vectors (so re-runs don't re-pay OpenAI)
+VECTOR_META_PATH = DATA_DIR / "vector_meta.pkl" # ids/texts/metadatas parallel to vectors
+CACHE_PATH = DATA_DIR / "semantic_cache.pkl"
 SQLITE_PATH = DATA_DIR / "lex.db"
 
 # --- Models (budget rule: cheapest tier only, see CLAUDE.md) ---

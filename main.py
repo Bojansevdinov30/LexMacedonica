@@ -3,6 +3,7 @@
 Serves the four interfaces (Jinja2 templates + static files) and the JSON API
 the frontend talks to. Run with:  uvicorn main:app --reload
 """
+import app.config  # noqa: F401  (loads .env + the machine's TLS fix before anything else)
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles

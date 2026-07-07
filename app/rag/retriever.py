@@ -11,10 +11,13 @@ import pickle
 from dataclasses import dataclass, field
 from functools import lru_cache
 
-import chromadb
+import faiss
+import numpy as np
 from langchain_openai import OpenAIEmbeddings
 
-from app.config import CHROMA_DIR, DATA_DIR, EMBEDDING_MODEL, TOP_CHUNKS_FOR_LLM
+from app.config import (
+    EMBEDDING_MODEL, FAISS_INDEX_PATH, TOP_CHUNKS_FOR_LLM, VECTOR_META_PATH,
+)
 from app.costs import log_cost
 from app.ingest.build_index import BM25_PATH, tokenize
 
@@ -59,9 +62,11 @@ def _bm25_index():
 
 
 @lru_cache(maxsize=1)
-def _chroma_collection():
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    return client.get_collection("cases")
+def _vector_index():
+    index = faiss.read_index(str(FAISS_INDEX_PATH))
+    with VECTOR_META_PATH.open("rb") as f:
+        meta = pickle.load(f)
+    return index, meta
 
 
 @lru_cache(maxsize=1)
@@ -81,16 +86,19 @@ def retrieve(question: str) -> RetrievalResult:
     candidates: dict[str, RetrievedChunk] = {}
 
     # --- vector leg ---
-    qvec = embed_query(question)
-    res = _chroma_collection().query(
-        query_embeddings=[qvec], n_results=CANDIDATES,
-        include=["documents", "metadatas", "distances"],
-    )
+    qvec = np.array([embed_query(question)], dtype="float32")
+    faiss.normalize_L2(qvec)  # normalized => inner product IS cosine similarity
+    index, meta = _vector_index()
+    sims, positions = index.search(qvec, CANDIDATES)
     vec_rank = {}
-    for rank, (cid, doc, meta, dist) in enumerate(zip(
-            res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0])):
-        similarity = 1.0 - dist  # cosine distance -> cosine similarity
-        candidates[cid] = RetrievedChunk(cid, doc, meta, vector_similarity=similarity)
+    for rank, (pos, similarity) in enumerate(zip(positions[0], sims[0])):
+        if pos < 0:
+            continue
+        cid = meta["ids"][pos]
+        candidates[cid] = RetrievedChunk(
+            cid, meta["texts"][pos], meta["metadatas"][pos],
+            vector_similarity=float(similarity),
+        )
         vec_rank[cid] = rank
 
     # --- keyword leg ---

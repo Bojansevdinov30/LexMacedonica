@@ -15,7 +15,8 @@ import pickle
 import re
 
 from app.config import (
-    CHROMA_DIR, DATA_DIR, EMBEDDING_MODEL, RAW_PDF_DIR, TXT_DIR,
+    DATA_DIR, EMBEDDING_MODEL, EMBEDDINGS_PATH, FAISS_INDEX_PATH,
+    RAW_PDF_DIR, TXT_DIR, VECTOR_META_PATH,
 )
 from app.ingest.chunking import make_splitter
 from app.ingest.pdf_extract import extract_all
@@ -103,36 +104,64 @@ def build_bm25(texts: list[str], metadatas: list[dict], ids: list[str]) -> None:
     print(f"BM25 index -> {BM25_PATH}")
 
 
-def build_chroma(texts: list[str], metadatas: list[dict], ids: list[str]) -> None:
-    import chromadb
+def build_faiss(texts: list[str], metadatas: list[dict], ids: list[str]) -> None:
+    """Embed new chunks (OpenAI) and (re)build the FAISS HNSW index.
+
+    The expensive part — the embeddings — is cached in embeddings.npz, so
+    re-running never re-pays OpenAI for chunks it already embedded. The HNSW
+    index itself is cheap to rebuild from the stored vectors.
+    """
+    import faiss
+    import numpy as np
     from langchain_openai import OpenAIEmbeddings
 
-    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-    collection = client.get_or_create_collection(
-        "cases", metadata={"hnsw:space": "cosine"}
-    )
+    from app.costs import log_cost
 
-    # only embed chunks Chroma doesn't have yet (idempotent + saves money)
-    existing = set(collection.get(ids=ids)["ids"])
-    new = [(t, m, i) for t, m, i in zip(texts, metadatas, ids) if i not in existing]
-    if not new:
-        print("Chroma: already up to date")
-        return
+    # load what we already embedded
+    old_vectors, old_ids = np.zeros((0, 1536), dtype="float32"), []
+    if EMBEDDINGS_PATH.exists():
+        stored = np.load(EMBEDDINGS_PATH, allow_pickle=True)
+        old_vectors, old_ids = stored["vectors"], list(stored["ids"])
 
-    embedder = OpenAIEmbeddings(model=EMBEDDING_MODEL)
-    BATCH = 200
-    for start in range(0, len(new), BATCH):
-        batch = new[start:start + BATCH]
-        b_texts = [t for t, _, _ in batch]
-        vectors = embedder.embed_documents(b_texts)
-        collection.add(
-            ids=[i for _, _, i in batch],
-            embeddings=vectors,
-            documents=b_texts,
-            metadatas=[m for _, m, _ in batch],
-        )
-        print(f"Chroma: embedded {min(start + BATCH, len(new))}/{len(new)} chunks")
-    print(f"Chroma index -> {CHROMA_DIR}")
+    known = set(old_ids)
+    new = [(t, m, i) for t, m, i in zip(texts, metadatas, ids) if i not in known]
+
+    if new:
+        embedder = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+        BATCH = 200
+        fresh = []
+        for start in range(0, len(new), BATCH):
+            batch = new[start:start + BATCH]
+            b_texts = [t for t, _, _ in batch]
+            fresh.extend(embedder.embed_documents(b_texts))
+            # rough token estimate (~2 chars/token for Cyrillic) for the budget log
+            log_cost(EMBEDDING_MODEL, sum(len(t) // 2 for t in b_texts), 0,
+                     label="index_embed")
+            print(f"Embedded {min(start + BATCH, len(new))}/{len(new)} new chunks")
+        all_vectors = np.vstack([old_vectors, np.array(fresh, dtype="float32")])
+        all_ids = old_ids + [i for _, _, i in new]
+        np.savez_compressed(EMBEDDINGS_PATH, vectors=all_vectors, ids=np.array(all_ids))
+    else:
+        all_vectors, all_ids = old_vectors, old_ids
+        print("Embeddings: already up to date")
+
+    # keep only vectors whose chunk still exists, ordered like `ids`
+    by_id = {cid: row for cid, row in zip(all_ids, all_vectors)}
+    matrix = np.array([by_id[i] for i in ids], dtype="float32")
+
+    # normalize so inner product == cosine similarity
+    faiss.normalize_L2(matrix)
+    # Exact (flat) index, not HNSW: FAISS's HNSW construction crashes on this
+    # machine (OpenMP access violation, Py3.14/Windows), and at ~6K vectors
+    # exact search is instant with perfect recall anyway. HNSW only becomes
+    # worth its build cost around millions of vectors.
+    index = faiss.IndexFlatIP(matrix.shape[1])
+    index.add(matrix)
+    faiss.write_index(index, str(FAISS_INDEX_PATH))
+
+    with VECTOR_META_PATH.open("wb") as f:
+        pickle.dump({"ids": ids, "texts": texts, "metadatas": metadatas}, f)
+    print(f"FAISS index ({index.ntotal} vectors) -> {FAISS_INDEX_PATH}")
 
 
 def main() -> None:
@@ -152,7 +181,7 @@ def main() -> None:
     if args.no_embed:
         print("Skipping embeddings (--no-embed). Run again without it when ready.")
         return
-    build_chroma(texts, metadatas, ids)
+    build_faiss(texts, metadatas, ids)
 
 
 if __name__ == "__main__":

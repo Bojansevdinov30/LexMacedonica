@@ -19,11 +19,14 @@ Hard deadline: **presentation at the end of August 2026**. Everything user-facin
 
 - Backend: **FastAPI** (`main.py`), Python, **LangChain** for RAG.
 - Frontend: plain **HTML/CSS/JS** served by FastAPI (Jinja2 templates + `static/`). No build step.
-- Vector DB: **Chroma** (persistent at `data/chroma/`, HNSW). Keyword: **BM25** (`rank_bm25`). Hybrid via RRF fusion.
+- Vector search: **FAISS** (`IndexHNSWFlat`, cosine via normalized inner product; index at `data/faiss.index`,
+  embeddings cached in `data/embeddings.npz` so re-runs don't re-pay OpenAI). NOTE: chromadb 1.x Rust core
+  crashes (access violation) on Python 3.14/Windows — do not switch back without testing.
+  Keyword: **BM25** (`rank_bm25`). Hybrid via RRF fusion.
 - Metadata: **SQLite** (`data/lex.db`) via SQLAlchemy — court, case number, date, legal area, **outcome** per case.
 - PDF: **PyMuPDF**. Embeddings: OpenAI `text-embedding-3-small`. LLM: `gpt-4o-mini` tier **everywhere** (cheapest).
-- Semantic cache: a Chroma collection of (query embedding → answer), cosine ≥ ~0.95 = cache hit. Redis only as a
-  later Docker learning exercise.
+- Semantic cache: numpy matrix of (query embedding → answer) at `data/semantic_cache.pkl`, cosine ≥ ~0.95 =
+  cache hit. Redis only as a later Docker learning exercise.
 - Logo: `static/img/logo.png` (source `logo.png` in root). Palette from logo: navy `#1e3a5f`, gold `#d4a017`,
   red accent, white background.
 

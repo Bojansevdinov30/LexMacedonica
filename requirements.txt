@@ -9,7 +9,8 @@ langchain
 langchain-openai
 langchain-community
 langchain-text-splitters
-chromadb
+faiss-cpu
+numpy
 rank_bm25
 tiktoken
 

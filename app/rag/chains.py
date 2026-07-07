@@ -23,7 +23,7 @@ from app.rag.probability import estimate, READABLE
 from app.rag.retriever import retrieve, embed_query
 
 NO_ANSWER = {
-    "answer": ("Не знам — во моята база нема доволно слични случаи за да дадам "
+    "answer": ("Не знам — во мојата база нема доволно слични случаи за да дадам "
                "поуздана проценка за оваа ситуација. Ве молам обидете се да ја "
                "опишете поинаку, или консултирајте адвокат."),
     "probability": None,
