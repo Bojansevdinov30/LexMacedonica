@@ -108,6 +108,16 @@ def simulate_turn(req: SimTurnRequest):
                 "text": f"Грешка: {type(e).__name__}", "done": True}
 
 
+@app.get("/api/costs")
+def costs_api():
+    """Cumulative OpenAI spend — shown in the footer as the budget proof."""
+    try:
+        from app.costs import total_spent
+        return {"total_usd": round(total_spent(), 4)}
+    except Exception:
+        return {"total_usd": None}
+
+
 @app.post("/api/anonymize")
 def anonymize_api(req: AnonymizeRequest):
     try:

@@ -26,9 +26,19 @@
     </main>
 
     <footer class="footer">
-        <p>LexMacedonica — АИ асистент за македонско право. Информациите не претставуваат правен совет.</p>
+        <p>LexMacedonica — АИ асистент за македонско право. Информациите не претставуваат правен совет.
+           <span id="cost-badge" class="cost-badge" title="Вкупен трошок на OpenAI API повици"></span></p>
     </footer>
 
+    <script>
+        // discreet live budget badge in the footer
+        fetch("/api/costs").then(r => r.json()).then(d => {
+            if (d.total_usd !== null && d.total_usd !== undefined) {
+                document.getElementById("cost-badge").textContent =
+                    `API: $${d.total_usd.toFixed(2)}`;
+            }
+        }).catch(() => {});
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

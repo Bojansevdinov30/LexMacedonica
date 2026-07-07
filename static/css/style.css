@@ -132,6 +132,20 @@ body {
 
 .msg-thinking { color: var(--muted); font-style: italic; }
 
+/* animated "..." while the model works */
+.msg-thinking::after {
+    content: "";
+    display: inline-block;
+    animation: thinking-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes thinking-dots {
+    0%   { content: ""; }
+    25%  { content: " ."; }
+    50%  { content: " .."; }
+    75%  { content: " ..."; }
+}
+
 /* Case citation cards (used from Phase 2 onward) */
 .case-card {
     background: var(--card);
@@ -344,9 +358,27 @@ body {
     border-top: 1px solid var(--border);
 }
 
+.cost-badge {
+    display: inline-block;
+    margin-left: 0.6rem;
+    padding: 0.1rem 0.55rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: 0.75rem;
+    color: var(--navy);
+    font-weight: 600;
+}
+
 /* ---------- Mobile ---------- */
 @media (max-width: 640px) {
     .navbar { flex-direction: column; padding: 0.6rem 1rem; }
     .nav-links { justify-content: center; }
     .msg { max-width: 95%; }
+    .sim-turn { max-width: 100%; }
+    .mode-toggle { flex-direction: column; gap: 0.4rem; border-radius: var(--radius); }
+    /* 16px inputs stop iOS Safari from auto-zooming on focus */
+    .chat-input textarea, .admin-wrap textarea { font-size: 16px; }
+    /* wide tables scroll inside themselves instead of breaking the page */
+    .anon-table { display: block; overflow-x: auto; }
 }

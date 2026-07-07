@@ -1,0 +1,17 @@
+# Like .gitignore but for "docker build": everything listed here is NOT sent
+# to Docker when building the image. Keeps the image small and secrets out.
+.venv/
+.git/
+.idea/
+__pycache__/
+*.pyc
+
+# secrets NEVER go into an image (they'd be baked in forever) —
+# the container gets them at RUNTIME via env_file in docker-compose.yml
+.env
+
+# data is mounted as a volume at runtime, not baked into the image
+data/
+
+all.devtools
+case_example.pdf

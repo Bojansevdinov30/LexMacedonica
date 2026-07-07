@@ -1,0 +1,25 @@
+# docker-compose = "run my whole app stack with one command":
+#     docker compose up --build
+# Stop with Ctrl+C, remove containers with: docker compose down
+
+services:
+  app:
+    build: .                    # build the image from ./Dockerfile
+    ports:
+      - "8000:8000"             # host port 8000 -> container port 8000
+    env_file:
+      - .env                    # OPENAI_API_KEY enters at runtime, never baked in
+    volumes:
+      # A volume maps a HOST folder into the CONTAINER, so the indexes, the
+      # SQLite DB and the PDFs live on your disk and survive container
+      # restarts. Without this the container would start with empty data.
+      - ./data:/app/data
+
+  # --- Later learning exercise (Redis semantic cache) ---------------------
+  # Uncomment to add a second container; app and redis get a private network
+  # and can reach each other by service name ("redis" becomes the hostname).
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
