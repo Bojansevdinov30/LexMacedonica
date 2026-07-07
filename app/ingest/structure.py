@@ -44,11 +44,15 @@ def get_engine():
 # Order matters: more specific patterns first. Matched against the dispositive
 # (text right after the decision header), uppercased and whitespace-collapsed.
 OUTCOME_PATTERNS: list[tuple[str, str]] = [
-    ("ДЕЛУМНО УСВОЕНО", r"ДЕЛУМНО\s+СЕ\s+УСВОЈУВА|СЕ\s+УСВОЈУВА\s+ДЕЛУМНО"),
-    ("УСВОЕНО",         r"СЕ\s+УСВОЈУВА"),
+    ("ДЕЛУМНО УСВОЕНО", r"ДЕЛУМНО\s+СЕ\s+УСВОЈУВА|СЕ\s+УСВОЈУВА\s+ДЕЛУМНО"
+                        r"|ДЕЛУМНО\s+СЕ\s+УВАЖУВА|СЕ\s+УВАЖУВА\s+ДЕЛУМНО"),
+    # УВАЖУВА is the older synonym of УСВОЈУВА, still used by some courts
+    ("УСВОЕНО",         r"СЕ\s+УСВОЈУВА|СЕ\s+УВАЖУВА"),
     ("ОДБИЕНО",         r"СЕ\s+ОДБИВА"),
-    ("ОТФРЛЕНО",        r"СЕ\s+ОТФРЛА"),
-    ("ЗАПРЕНА ПОСТАПКА", r"СЕ\s+ЗАПИРА|СЕ\s+ПОВЛЕКУВА|ПОВЛЕЧЕНА"),
+    # ОТ[РФ]{2}ЛА tolerates the "ОТРФЛА" typo that real decisions contain
+    ("ОТФРЛЕНО",        r"СЕ\s+ОТ[РФ]{2}ЛА|НЕНАДЛЕЖЕН"),
+    ("ЗАПРЕНА ПОСТАПКА", r"СЕ\s+ЗАПИРА|СЕ\s+ПОВЛЕКУВА|ПОВЛЕЧЕНА|ПОВЛЕКУВАЊЕ"),
+    ("СПОГОДБА",        r"ПОРАМНУВАЊЕ|СПОГОДБА"),   # settlement
     ("ПОТВРДЕНО",       r"СЕ\s+ПОТВРДУВА"),   # appeal decisions
     ("УКИНАТО",         r"СЕ\s+УКИНУВА"),      # appeal decisions
 ]
