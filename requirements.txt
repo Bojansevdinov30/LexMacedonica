@@ -1,0 +1,23 @@
+# Web framework
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+
+# RAG
+langchain
+langchain-openai
+langchain-community
+langchain-text-splitters
+chromadb
+rank_bm25
+tiktoken
+
+# Data pipeline
+pymupdf
+requests
+beautifulsoup4
+sqlalchemy
+
+# Config
+python-dotenv

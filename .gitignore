@@ -1,0 +1,17 @@
+# Secrets — never commit API keys
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+
+# Data (large, regenerable from the pipeline)
+data/
+
+# OS
+Thumbs.db
+.DS_Store

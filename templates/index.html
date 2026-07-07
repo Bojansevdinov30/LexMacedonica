@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}LexMacedonica — Правен асистент{% endblock %}
+
+{% block content %}
+<section class="chat-wrap">
+    <div class="chat-window" id="chat-window">
+        <div class="msg msg-bot">
+            <p>Здраво! 👋 Опишете ја вашата правна ситуација, а јас ќе ви кажам што е најверојатно да се
+            случи — со процент на веројатност и врз основа на кои слични минати случаи е донесена проценката.</p>
+        </div>
+    </div>
+
+    <form class="chat-input" id="chat-form">
+        <textarea id="chat-text" rows="2"
+            placeholder="Опишете ја вашата ситуација... (пр. „Работодавачот ми должи три плати и ме отпушти без отказен рок...“)"
+            required></textarea>
+        <button type="submit" id="chat-send">Прашај</button>
+    </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/chat.js"></script>
+{% endblock %}

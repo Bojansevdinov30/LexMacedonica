@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="mk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LexMacedonica{% endblock %}</title>
+    <link rel="icon" type="image/png" href="/static/img/logo.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="navbar">
+        <a href="/" class="brand">
+            <img src="/static/img/logo.png" alt="LexMacedonica лого" class="brand-logo">
+            <span class="brand-name">Lex<span class="brand-accent">Macedonica</span></span>
+        </a>
+        <nav class="nav-links">
+            <a href="/" class="{{ 'active' if active == 'home' else '' }}">Правен асистент</a>
+            <a href="/simulacija" class="{{ 'active' if active == 'simulation' else '' }}">Симулација</a>
+            <a href="/advokati" class="{{ 'active' if active == 'lawyer' else '' }}">Адвокати</a>
+            <a href="/administracija" class="{{ 'active' if active == 'admin' else '' }}">Администрација</a>
+        </nav>
+    </header>
+
+    <main class="page">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>LexMacedonica — АИ асистент за македонско право. Информациите не претставуваат правен совет.</p>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

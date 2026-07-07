@@ -1,0 +1,34 @@
+"""Central configuration for LexMacedonica.
+
+Everything tunable lives here so we never hunt for magic numbers in the code.
+Secrets (the OpenAI key) live in .env, loaded via python-dotenv.
+"""
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()  # makes OPENAI_API_KEY from .env visible to os.environ / OpenAI SDK
+
+# --- Paths ---
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data"
+RAW_PDF_DIR = DATA_DIR / "raw_pdfs"
+TXT_DIR = DATA_DIR / "txt"
+RAW_HTML_DIR = DATA_DIR / "raw_html"
+CHROMA_DIR = DATA_DIR / "chroma"
+SQLITE_PATH = DATA_DIR / "lex.db"
+
+# --- Models (budget rule: cheapest tier only, see CLAUDE.md) ---
+EMBEDDING_MODEL = "text-embedding-3-small"
+CHAT_MODEL = "gpt-4o-mini"
+
+# --- RAG tuning ---
+CHUNK_SIZE_TOKENS = 800
+CHUNK_OVERLAP_RATIO = 0.15
+TOP_CHUNKS_FOR_LLM = 3        # keep context small = less noise + cheaper
+TOP_CASES_FOR_PROBABILITY = 10
+MIN_SIMILARITY_FOR_ANSWER = 0.30   # below this → honest "Не знам"
+SEMANTIC_CACHE_THRESHOLD = 0.95
+
+# --- Budget guard ---
+BUDGET_WARN_USD = 15.0
