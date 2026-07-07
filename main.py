@@ -42,6 +42,9 @@ async def admin(request: Request):
 
 class ChatRequest(BaseModel):
     question: str
+    # this chat's previous messages, kept by the BROWSER (no server sessions):
+    # [{"who": "user"|"bot", "text": "..."}]
+    history: list[dict] = []
 
 
 class LawyerRequest(BaseModel):
@@ -72,7 +75,7 @@ def chat(req: ChatRequest):
         }
     try:
         from app.rag.chains import answer_question
-        return answer_question(req.question)
+        return answer_question(req.question, req.history)
     except Exception as e:
         import traceback
         traceback.print_exc()

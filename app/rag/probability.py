@@ -41,12 +41,13 @@ def estimate(result: RetrievalResult) -> ProbabilityEstimate | None:
     weighted: dict[str, float] = {}
     counts: dict[str, int] = {}
 
-    for chunk in cases:
-        outcome = chunk.metadata.get("outcome", "НЕПОЗНАТО")
+    for case in cases:
+        outcome = case.metadata.get("outcome", "НЕПОЗНАТО")
         if outcome in NON_MERITS:
             continue
-        # rrf_score reflects how similar the case is to the user's situation
-        weight = chunk.rrf_score or 0.001
+        # similarity of the case SUMMARY to the user's situation — cases that
+        # match the situation better influence the estimate more
+        weight = max(case.similarity, 0.001)
         weighted[outcome] = weighted.get(outcome, 0.0) + weight
         counts[outcome] = counts.get(outcome, 0) + 1
 

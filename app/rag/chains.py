@@ -1,13 +1,21 @@
 """The main answer chain for Правен асистент (Interface 1).
 
 Pipeline per question:
+  0. condensation: if there is chat history, a cheap LLM call rewrites the
+     follow-up into a STANDALONE question ("а колку трае постапката?" ->
+     "колку трае судска постапка за неисплатени плати?"), so retrieval and
+     caching always operate on a complete question
   1. semantic cache lookup            (hit = free, instant answer)
-  2. hybrid retrieval                 (BM25 + vectors + RRF, retriever.py)
+  2. two-stage retrieval              (case summaries -> passages, retriever.py)
   3. confidence gate                  (low similarity -> honest "Не знам")
   4. probability from case outcomes   (our statistic, probability.py)
-  5. LLM writes the answer            (Macedonian, cites the top cases)
+  5. LLM writes the answer            (Macedonian, sees the history, cites cases)
   6. self-check pass                  (second cheap call verifies grounding)
   7. cache store + return
+
+There are NO server-side sessions: the browser keeps this chat's history and
+sends it with every request (see static/js/chat.js). Accounts/sessions are on
+the post-August roadmap.
 """
 from __future__ import annotations
 
@@ -43,9 +51,19 @@ ANSWER_PROMPT = ChatPromptTemplate.from_messages([
      "4. Не давај правен совет; на крај потсети дека ова е информативна проценка.\n"
      "5. Ако извадоците не се релевантни за прашањето, кажи отворено дека не знаеш."),
     ("user",
+     "{history_block}"
      "Прашање на корисникот:\n{question}\n\n"
      "Статистика од најслични случаи: {stats}\n\n"
      "Извадоци од најслични судски одлуки:\n{context}"),
+])
+
+CONDENSE_PROMPT = ChatPromptTemplate.from_messages([
+    ("system",
+     "Дадени се историја на разговор и ново прашање кое може да се потпира на "
+     "неа. Преформулирај го новото прашање во САМОСТОЈНО прашање на македонски "
+     "што ја содржи целата потребна ситуација од историјата. Ако прашањето е "
+     "веќе самостојно, врати го непроменето. Врати САМО прашањето."),
+    ("user", "Историја:\n{history}\n\nНово прашање: {question}"),
 ])
 
 SELF_CHECK_PROMPT = ChatPromptTemplate.from_messages([
@@ -72,17 +90,34 @@ def _format_context(chunks) -> str:
     return "\n\n".join(parts)
 
 
-def answer_question(question: str) -> dict:
+def _condense(question: str, history: list[dict]) -> str:
+    """Rewrite a follow-up into a standalone question using the chat history."""
+    history_text = "\n".join(
+        f"{'Корисник' if h.get('who') == 'user' else 'Асистент'}: {h.get('text', '')[:400]}"
+        for h in history[-6:]   # last 3 exchanges are plenty
+    )
+    response = _llm().invoke(CONDENSE_PROMPT.format_messages(
+        history=history_text, question=question))
+    log_llm_response(response, label="condense")
+    return response.content.strip() or question
+
+
+def answer_question(question: str, history: list[dict] | None = None) -> dict:
     question = question.strip()
 
-    # 1. semantic cache
+    # 0. follow-ups depend on the history — make the question standalone first
+    if history:
+        question = _condense(question, history)
+
+    # 1. semantic cache (keyed on the standalone question, so follow-ups
+    #    that mean the same thing still hit)
     qvec = embed_query(question)
     cached = cache.lookup(qvec)
     if cached is not None:
         cached["cached"] = True
         return cached
 
-    # 2. hybrid retrieval
+    # 2. two-stage retrieval (case summaries -> passages)
     result = retrieve(question)
 
     # 3. confidence gate — better an honest "не знам" than a hallucination
@@ -97,11 +132,20 @@ def answer_question(question: str) -> dict:
     else:
         stats = "нема доволно споредливи случаи за бројчена проценка"
 
-    # 5. answer
+    # 5. answer (sees a short history so replies read like a conversation)
+    history_block = ""
+    if history:
+        recent = "\n".join(
+            f"{'Корисник' if h.get('who') == 'user' else 'Асистент'}: {h.get('text', '')[:300]}"
+            for h in history[-4:]
+        )
+        history_block = f"Досегашен разговор:\n{recent}\n\n"
+
     context = _format_context(result.top_chunks())
     llm = _llm()
     response = llm.invoke(ANSWER_PROMPT.format_messages(
-        question=question, stats=stats, context=context))
+        history_block=history_block, question=question, stats=stats,
+        context=context))
     log_llm_response(response, label="answer")
 
     # 6. self-check
@@ -109,16 +153,17 @@ def answer_question(question: str) -> dict:
         context=context, answer=response.content))
     log_llm_response(checked, label="self_check")
 
-    # cited cases for the UI cards: the distinct cases behind the answer
+    # cited cases for the UI cards — with their human-written-quality
+    # summaries ("what the case is about"), far clearer than raw chunk text
     cases = []
-    for chunk in result.top_cases(3):
-        m = chunk.metadata
+    for case in result.top_cases(3):
+        m = case.metadata
         cases.append({
             "case_number": m["case_number"],
             "court": m["court"],
             "date": m["date"],
             "outcome": READABLE.get(m["outcome"], m["outcome"]),
-            "summary": (chunk.text[:220].replace("\n", " ") + "…"),
+            "summary": m.get("summary", "")[:400],
         })
 
     payload = {

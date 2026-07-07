@@ -6,6 +6,11 @@ const form = document.getElementById("chat-form");
 const textarea = document.getElementById("chat-text");
 const sendBtn = document.getElementById("chat-send");
 
+// This chat's memory lives HERE, in the browser — each request carries the
+// history so the backend can understand follow-up questions. Refreshing the
+// page starts a fresh chat.
+const history = [];
+
 function addMessage(text, who) {
     const div = document.createElement("div");
     div.className = `msg msg-${who}`;
@@ -64,19 +69,21 @@ form.addEventListener("submit", async (e) => {
     addMessage(question, "user");
     textarea.value = "";
     sendBtn.disabled = true;
-    const thinking = addMessage("Пребарувам слични случаи…", "bot");
+    const thinking = addMessage("Пребарувам слични случаи", "bot");
     thinking.classList.add("msg-thinking");
 
     try {
         const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question }),
+            body: JSON.stringify({ question, history }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         thinking.remove();
         renderAnswer(data);
+        history.push({ who: "user", text: question });
+        history.push({ who: "bot", text: data.answer });
     } catch (err) {
         thinking.remove();
         addMessage("Се појави грешка при обработката. Обидете се повторно.", "bot");

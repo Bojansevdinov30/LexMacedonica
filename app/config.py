@@ -36,7 +36,9 @@ CHUNK_SIZE_TOKENS = 800
 CHUNK_OVERLAP_RATIO = 0.15
 TOP_CHUNKS_FOR_LLM = 3        # keep context small = less noise + cheaper
 TOP_CASES_FOR_PROBABILITY = 10
-MIN_SIMILARITY_FOR_ANSWER = 0.30   # below this → honest "Не знам"
+# "Не знам" gate, measured empirically on the SUMMARY index (July 2026):
+# real labor questions score 0.49-0.58, off-topic 0.25-0.36 — 0.42 splits them
+MIN_SIMILARITY_FOR_ANSWER = 0.42
 SEMANTIC_CACHE_THRESHOLD = 0.95
 
 # --- Budget guard ---

@@ -65,9 +65,14 @@ similarity, framed honestly as statistics over past cases, **not legal advice**.
 ## RAG conventions
 
 - Chunking: RecursiveCharacterTextSplitter ~800 tokens, ~15 % overlap (semantic chunking = later experiment).
-- Retrieval: BM25 + vectors → RRF fusion → **top-3 chunks** to the LLM; top-10 *cases* kept for probability math.
-- Self-check pass (second cheap call) before output; if max similarity below threshold → honest **"Не знам"**
-  answer, never hallucinate.
+- **Two-stage retrieval**: stage 1 searches per-case LLM summaries ("what is the case about",
+  `app/ingest/summarize.py`, index `data/summaries.index`) → top-12 candidate cases; stage 2 = BM25 + vectors
+  → RRF fusion restricted to those cases → **top-3 chunks** to the LLM. Probability + citations use the
+  stage-1 (situation-level) ranking and the case summaries.
+- **Conversation memory**: no server sessions — the browser keeps the chat history and sends it along;
+  the backend condenses follow-ups into standalone questions (cheap LLM call) before retrieval/caching.
+- Self-check pass (second cheap call) before output; if max summary similarity below threshold → honest
+  **"Не знам"** answer, never hallucinate.
 - All prompts and UI text in Macedonian.
 
 ## Working style (user is a student)
