@@ -44,26 +44,25 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
-    """Main assistant endpoint.
+def chat(req: ChatRequest):
+    """Main assistant endpoint (sync `def` on purpose: FastAPI runs it in a
+    worker thread, so the LLM calls don't block other requests)."""
+    import os
 
-    Phase 0 stub: returns a hardcoded response in the exact shape the real RAG
-    chain will produce in Phase 2 (answer + probability + cited cases), so the
-    frontend can be built and tested against the final contract from day one.
-    """
-    return {
-        "answer": (
-            "Ова е тест-одговор (системот сè уште не е поврзан со базата на случаи). "
-            "Вашето прашање беше: „" + req.question.strip() + "“"
-        ),
-        "probability": 70,
-        "cases": [
-            {
-                "case_number": "П1-94/24",
-                "court": "Основен суд Битола",
-                "date": "25.11.2024",
-                "outcome": "СЕ УСВОЈУВА",
-                "summary": "Пример-случај за демонстрација на изгледот на картичките.",
-            }
-        ],
-    }
+    if not os.environ.get("OPENAI_API_KEY"):
+        return {
+            "answer": ("Системот сè уште не е поврзан со OpenAI. Додадете "
+                       "OPENAI_API_KEY во .env датотеката (видете .env.example)."),
+            "probability": None, "cases": [],
+        }
+    try:
+        from app.rag.chains import answer_question
+        return answer_question(req.question)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "answer": f"Грешка при обработката: {type(e).__name__}. "
+                      "Проверете дали е изграден индексот (build_index).",
+            "probability": None, "cases": [],
+        }
