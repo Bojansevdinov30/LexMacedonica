@@ -5,7 +5,13 @@ Secrets (the OpenAI key) live in .env, loaded via python-dotenv.
 """
 from pathlib import Path
 
+import truststore
 from dotenv import load_dotenv
+
+# This machine's HTTPS is TLS-intercepted (antivirus), so Python's bundled
+# certificates fail. truststore makes Python use the Windows cert store —
+# without this line every OpenAI/tiktoken call dies with CERTIFICATE_VERIFY_FAILED.
+truststore.inject_into_ssl()
 
 load_dotenv()  # makes OPENAI_API_KEY from .env visible to os.environ / OpenAI SDK
 

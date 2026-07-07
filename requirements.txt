@@ -21,3 +21,5 @@ sqlalchemy
 
 # Config
 python-dotenv
+truststore
+
