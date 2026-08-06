@@ -1,9 +1,5 @@
 """CLI to scrape court decisions from sud.mk.
 
-The reliable filter (see sudmk.py docstring) is court + case-number prefix:
-"РО" = labor disputes, "П1".."П5" = civil litigation, "МАЛВП" = small claims.
-
-Examples (run from the project root):
     # count labor cases per court, download nothing:
     python -m app.scraper.run_scrape --prefix РО --limit 0
 

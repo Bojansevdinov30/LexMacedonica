@@ -8,10 +8,12 @@ turn by turn and the server stays stateless.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 from langchain_openai import ChatOpenAI
 
 from app.config import CHAT_MODEL
-from app.costs import log_llm_response
+
 
 ROLES = {
     "narrator": ("Наратор", "🎙️"),
@@ -46,6 +48,12 @@ PROMPTS = {
 }
 
 
+@lru_cache(maxsize=1)
+def _sim_llm() -> ChatOpenAI:
+    # one client reused for every turn
+    return ChatOpenAI(model=CHAT_MODEL, temperature=0.7, max_tokens=400)
+
+
 def next_turn(scenario: str, history: list[dict]) -> dict | None:
     """history = [{"role": "plaintiff", "text": "..."}]. None = trial over."""
     step = len(history)
@@ -57,16 +65,50 @@ def next_turn(scenario: str, history: list[dict]) -> dict | None:
         f"{ROLES[h['role']][0]}: {h['text']}" for h in history
     ) or "(судењето штотуку почнува)"
 
-    llm = ChatOpenAI(model=CHAT_MODEL, temperature=0.7, max_tokens=400)
-    response = llm.invoke([
+    response = _sim_llm().invoke([
         ("system", PROMPTS[role]),
         ("user", f"Сценарио на случајот:\n{scenario}\n\n"
                  f"Досегашен тек на судењето:\n{transcript}\n\n"
                  f"Твојот настап сега:"),
     ])
-    log_llm_response(response, label=f"sim_{role}")
 
     name, icon = ROLES[role]
     return {"role": role, "name": name, "icon": icon,
             "text": response.content.strip(),
             "done": step + 1 >= len(SCRIPT)}
+
+
+def stream_turn(scenario: str, history: list[dict]):
+    """Streaming variant of next_turn: yields NDJSON-ready dicts.
+
+    Рeдosлед на настани: meta (кој зборува — познато ПРЕД LLM-повикот) →
+    token* (парчиња текст како што ги генерира моделот) → final (целиот
+    текст + done). next_turn останува како непроточна референца — истата
+    логика, еден invoke() наместо stream().
+    """
+    step = len(history)
+    if step >= len(SCRIPT):
+        yield {"type": "final", "text": "", "done": True}
+        return
+    role = SCRIPT[step]
+    name, icon = ROLES[role]
+    yield {"type": "meta", "role": role, "name": name, "icon": icon}
+
+    transcript = "\n\n".join(
+        f"{ROLES[h['role']][0]}: {h['text']}" for h in history
+    ) or "(судењето штотуку почнува)"
+
+    pieces: list[str] = []
+    for chunk in _sim_llm().stream([
+        ("system", PROMPTS[role]),
+        ("user", f"Сценарио на случајот:\n{scenario}\n\n"
+                 f"Досегашен тек на судењето:\n{transcript}\n\n"
+                 f"Твојот настап сега:"),
+    ]):
+        if chunk.content:
+            pieces.append(chunk.content)
+            yield {"type": "token", "text": chunk.content}
+
+    yield {"type": "final", "role": role, "name": name, "icon": icon,
+           "text": "".join(pieces).strip(),
+           "done": step + 1 >= len(SCRIPT)}

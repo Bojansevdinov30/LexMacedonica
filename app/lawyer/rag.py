@@ -9,18 +9,14 @@ Differences vs the citizen chat:
 from __future__ import annotations
 
 import json
-import pickle
-from functools import lru_cache
 
-import faiss
-import numpy as np
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 from app.config import CHAT_MODEL
-from app.costs import log_llm_response
-from app.lawyer.build_laws import LAWS_INDEX_PATH, LAWS_META_PATH
+
 from app.rag.retriever import embed_query, retrieve
+from app.vectorstore import collection, sim
 
 LAWYER_PROMPT = ChatPromptTemplate.from_messages([
     ("system",
@@ -38,46 +34,41 @@ LAWYER_PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
-@lru_cache(maxsize=1)
-def _laws_index():
-    index = faiss.read_index(str(LAWS_INDEX_PATH))
-    with LAWS_META_PATH.open("rb") as f:
-        meta = pickle.load(f)
-    return index, meta
-
-
 def laws_available() -> bool:
-    return LAWS_INDEX_PATH.exists()
+    return collection("laws").count() > 0
 
 
-def search_laws(question: str, k: int = 4) -> list[dict]:
-    index, meta = _laws_index()
-    q = np.array([embed_query(question)], dtype="float32")
-    faiss.normalize_L2(q)
-    sims, positions = index.search(q, k)
+def search_laws(question: str, k: int = 4,
+                query_vector: list[float] | None = None) -> list[dict]:
+    # reuse the caller's embedding when it has one (explicit None check —
+    # an empty list must not silently trigger a re-embed)
+    if query_vector is None:
+        query_vector = embed_query(question)
+    r = collection("laws").query(query_embeddings=[query_vector], n_results=k,
+                                 include=["documents", "metadatas", "distances"])
     out = []
-    for pos, sim in zip(positions[0], sims[0]):
-        if pos < 0:
-            continue
-        m = meta["metadatas"][pos]
+    for m, text, dist in zip(r["metadatas"][0], r["documents"][0], r["distances"][0]):
         out.append({"law": m["law"], "article": m["article"],
-                    "text": meta["texts"][pos], "similarity": float(sim)})
+                    "text": text, "similarity": sim(dist)})
     return out
 
 
 def lawyer_answer(question: str, mode: str = "laws") -> dict:
     """mode: "laws" (закони + пракса) or "cases" (само судска пракса)."""
+    # ONE embedding, shared by the laws search and the case retrieval below —
+    # the question text is identical, so re-embedding it was a wasted call
+    qvec = embed_query(question)
     sources_text, sources_list = [], []
 
     if mode == "laws" and laws_available():
-        for a in search_laws(question, k=4):
+        for a in search_laws(question, k=4, query_vector=qvec):
             sources_text.append(f"--- {a['law']}, {a['article']} ---\n{a['text']}")
             sources_list.append({"type": "закон", "ref": f"{a['law']}, {a['article']}"})
         case_k = 2   # cases as secondary support
     else:
         case_k = 4   # cases-only mode
 
-    case_result = retrieve(question)
+    case_result = retrieve(question, query_vector=qvec)
     for chunk in case_result.top_chunks(case_k):
         m = chunk.metadata
         sources_text.append(f"--- Судска пракса: {m['case_number']}, {m['court']}, "
@@ -89,7 +80,6 @@ def lawyer_answer(question: str, mode: str = "laws") -> dict:
                      model_kwargs={"response_format": {"type": "json_object"}})
     response = llm.invoke(LAWYER_PROMPT.format_messages(
         question=question, context="\n\n".join(sources_text)))
-    log_llm_response(response, label="lawyer")
 
     try:
         parsed = json.loads(response.content)

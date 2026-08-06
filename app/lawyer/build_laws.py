@@ -1,26 +1,25 @@
-"""Build the laws index: PDF -> articles (Член N) -> embeddings -> FAISS.
+"""Build the laws index: PDF -> articles (Член N) -> embeddings -> ChromaDB.
 
 Laws are chunked BY ARTICLE, not by size: a lawyer needs the exact "член 76
 од ЗРО" citation, and an article is the natural self-contained unit of a law.
 Very long articles get sub-split so embeddings stay focused.
 
-Run:  python -m app.lawyer.build_laws
+Run:  python -m app.lawyer.build_laws     (со запрен uvicorn — Windows locking)
 """
-import pickle
 import re
 
-import faiss
 import numpy as np
 import pymupdf
 from langchain_openai import OpenAIEmbeddings
 
 from app.config import DATA_DIR, EMBEDDING_MODEL
-from app.costs import log_cost
+
 from app.ingest.chunking import make_splitter
+from app.vectorstore import collection
 
 LAWS_DIR = DATA_DIR / "laws"
-LAWS_INDEX_PATH = DATA_DIR / "laws.index"
-LAWS_META_PATH = DATA_DIR / "laws_meta.pkl"
+# LAWS_INDEX_PATH = DATA_DIR / "laws.index"       # остануваат само за rollback
+# LAWS_META_PATH = DATA_DIR / "laws_meta.pkl"     # (other/) — не се пишуваат
 LAWS_EMB_PATH = DATA_DIR / "laws_embeddings.npz"
 
 # "Член 15", "Член 15-а", "Член  4" (double spaces happen in the PDFs)
@@ -43,6 +42,7 @@ def split_articles(text: str, law_name: str) -> list[tuple[str, str]]:
 def main() -> None:
     splitter = make_splitter()
     texts, metadatas, ids = [], [], []
+    seen: dict[str, int] = {}
 
     for pdf in sorted(LAWS_DIR.glob("*.pdf")):
         law_name = pdf.stem
@@ -58,11 +58,13 @@ def main() -> None:
             full = f"{law_name}, {label}:\n{body}"
             pieces = splitter.split_text(full) if len(full) > 4000 else [full]
             for j, piece in enumerate(pieces):
-                ids.append(f"{law_name}|{label}|{j}")
+                base = f"{law_name}|{label}|{j}"
+                seen[base] = seen.get(base, 0) + 1
+                ids.append(base if seen[base] == 1 else f"{base}~{seen[base]}")
                 texts.append(piece)
                 metadatas.append({"law": law_name, "article": label})
 
-    print(f"Total chunks to embed: {len(texts)}")
+    print(f"Total chunks: {len(texts)}")
 
     # embed only what's new (same money-saving pattern as build_index)
     old_vectors, old_ids = np.zeros((0, 1536), dtype="float32"), []
@@ -78,8 +80,6 @@ def main() -> None:
         for start in range(0, len(new), 200):
             batch = [t for t, _ in new[start:start + 200]]
             fresh.extend(embedder.embed_documents(batch))
-            log_cost(EMBEDDING_MODEL, sum(len(t) // 2 for t in batch), 0,
-                     label="laws_embed")
             print(f"embedded {min(start + 200, len(new))}/{len(new)}")
         all_vectors = np.vstack([old_vectors, np.array(fresh, dtype="float32")])
         all_ids = old_ids + [i for _, i in new]
@@ -88,15 +88,19 @@ def main() -> None:
         all_vectors, all_ids = old_vectors, old_ids
         print("laws embeddings already up to date")
 
+    # last write wins per id — with unique ids every chunk gets ITS OWN vector
     by_id = {cid: row for cid, row in zip(all_ids, all_vectors)}
-    matrix = np.array([by_id[i] for i in ids], dtype="float32")
-    faiss.normalize_L2(matrix)
-    index = faiss.IndexFlatIP(matrix.shape[1])
-    index.add(matrix)
-    faiss.write_index(index, str(LAWS_INDEX_PATH))
-    with LAWS_META_PATH.open("wb") as f:
-        pickle.dump({"ids": ids, "texts": texts, "metadatas": metadatas}, f)
-    print(f"laws index ({index.ntotal} vectors) -> {LAWS_INDEX_PATH}")
+
+    col = collection("laws")
+    BATCH = 1000
+    for s in range(0, len(ids), BATCH):
+        col.upsert(
+            ids=ids[s:s + BATCH],
+            embeddings=[by_id[i].tolist() for i in ids[s:s + BATCH]],
+            documents=texts[s:s + BATCH],
+            metadatas=metadatas[s:s + BATCH],
+        )
+    print(f"Chroma 'laws': {col.count()} vectors")
 
 
 if __name__ == "__main__":

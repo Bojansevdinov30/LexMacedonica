@@ -1,10 +1,4 @@
-"""Outcome probability from similar past cases.
-
-The number the user sees is OUR statistic, not something the LLM invents:
-take the N most similar cases, look up their real outcomes in SQLite metadata,
-and compute a similarity-weighted share for the dominant outcome. More similar
-cases influence the estimate more.
-"""
+"""Outcome probability from similar past cases."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,8 +6,7 @@ from dataclasses import dataclass
 from app.config import TOP_CASES_FOR_PROBABILITY
 from app.rag.retriever import RetrievalResult
 
-# procedural endings say nothing about who was right — exclude from the stats
-NON_MERITS = {"НЕПОЗНАТО", "ЗАПРЕНА ПОСТАПКА", "СПОГОДБА"}
+NON_MERITS = {"НЕПОЗНАТО", "ЗАПРЕНА ПОСТАПКА", "СПОГОДБА", "ПОТВРДЕНО", "УКИНАТО"}
 
 READABLE = {
     "УСВОЕНО": "тужбеното барање е усвоено (тужителот добил)",

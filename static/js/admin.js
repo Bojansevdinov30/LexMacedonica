@@ -1,4 +1,4 @@
-// Anonymization tool: paste text -> anonymized text + replacement table + reasoning.
+/* Anonymization tool: paste text -> anonymized text + replacement table + reasoning.*/
 
 const form = document.getElementById("anon-form");
 const input = document.getElementById("anon-input");
@@ -8,6 +8,7 @@ const output = document.getElementById("anon-output");
 const replacementsEl = document.getElementById("anon-replacements");
 const reasoningEl = document.getElementById("anon-reasoning");
 const reasoningBox = document.getElementById("anon-reasoning-box");
+const section = form.parentElement;   // грешките се прикажуваат под формата
 
 form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -18,12 +19,7 @@ form.addEventListener("submit", async (e) => {
     btn.textContent = "Анонимизирам…";
 
     try {
-        const res = await fetch("/api/anonymize", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text }),
-        });
-        const data = await res.json();
+        const data = await postJSON("/api/anonymize", { text });
 
         output.textContent = data.anonymized || "(празно)";
         reasoningEl.textContent = data.reasoning || "";
@@ -40,13 +36,16 @@ form.addEventListener("submit", async (e) => {
             replacementsEl.appendChild(tr);
         }
         if (!(data.replacements || []).length) {
-            replacementsEl.innerHTML =
-                "<tr><td colspan='3'>Не се пронајдени лични податоци.</td></tr>";
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = 3;
+            td.textContent = "Не се пронајдени лични податоци.";
+            tr.appendChild(td);
+            replacementsEl.appendChild(tr);
         }
         resultBox.style.display = "";
     } catch (err) {
-        alert("Грешка при анонимизацијата.");
-        console.error(err);
+        showError(section, err);
     } finally {
         btn.disabled = false;
         btn.textContent = "Анонимизирај";

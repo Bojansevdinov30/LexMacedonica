@@ -15,3 +15,4 @@ data/
 # OS
 Thumbs.db
 .DS_Store
+/other/

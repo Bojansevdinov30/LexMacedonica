@@ -4,7 +4,7 @@ Run:  python -m app.rag.eval_questions
 Prints the retrieval confidence, computed probability, cited cases and answer
 for each question — the fastest way to see whether tuning is needed.
 """
-from app.costs import total_spent
+
 from app.rag.chains import answer_question
 from app.rag.retriever import retrieve
 
@@ -31,7 +31,6 @@ def main() -> None:
             print(f"[case] {c['case_number']} | {c['court']} | {c['date']} | {c['outcome']}")
         print("[answer]", res["answer"][:600])
         print()
-    print(f"Total OpenAI spend so far: ${total_spent():.4f}")
 
 
 if __name__ == "__main__":

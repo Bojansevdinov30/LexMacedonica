@@ -15,7 +15,7 @@ def extract_pdf(pdf_path: Path) -> str:
     pages = [page.get_text() for page in doc]
     doc.close()
     text = "\n".join(pages)
-    # collapse 3+ blank lines, strip trailing spaces — keeps chunking clean
+    # strip trailing spaces — keeps chunking clean
     lines = [ln.rstrip() for ln in text.splitlines()]
     out, blanks = [], 0
     for ln in lines:

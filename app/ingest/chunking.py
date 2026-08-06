@@ -1,9 +1,4 @@
-"""Chunking: split long decisions into overlapping pieces for retrieval.
-
-Why: embeddings represent ONE idea per vector; a 10-page decision squeezed
-into one vector loses detail. Overlap keeps sentences that fall on a boundary
-present in both neighbors, so no idea is ever cut in half.
-"""
+"""Chunking: split long decisions into overlapping pieces for retrieval."""
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_RATIO

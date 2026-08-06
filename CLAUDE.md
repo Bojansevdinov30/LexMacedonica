@@ -19,10 +19,12 @@ Hard deadline: **presentation at the end of August 2026**. Everything user-facin
 
 - Backend: **FastAPI** (`main.py`), Python, **LangChain** for RAG.
 - Frontend: plain **HTML/CSS/JS** served by FastAPI (Jinja2 templates + `static/`). No build step.
-- Vector search: **FAISS** (`IndexHNSWFlat`, cosine via normalized inner product; index at `data/faiss.index`,
-  embeddings cached in `data/embeddings.npz` so re-runs don't re-pay OpenAI). NOTE: chromadb 1.x Rust core
-  crashes (access violation) on Python 3.14/Windows — do not switch back without testing.
-  Keyword: **BM25** (`rank_bm25`). Hybrid via RRF fusion.
+- Vector search: **FAISS** (`IndexFlatIP` — exact search, cosine via normalized inner product; HNSW's build
+  step crashes on Python 3.14/Windows (OpenMP access violation) and exact search is instant at ~6K vectors
+  anyway; index at `data/faiss.index`, embeddings cached in `data/embeddings.npz` so re-runs don't re-pay
+  OpenAI). NOTE: chromadb 1.x Rust core crashes (access violation) on Python 3.14/Windows — do not switch
+  back without testing. Keyword: **BM25** (`rank_bm25`). Hybrid via RRF fusion.
+- Rate limiting: **slowapi**, per-IP on the LLM-calling `/api/*` endpoints (10/min; simulation 30/min).
 - Metadata: **SQLite** (`data/lex.db`) via SQLAlchemy — court, case number, date, legal area, **outcome** per case.
 - PDF: **PyMuPDF**. Embeddings: OpenAI `text-embedding-3-small`. LLM: `gpt-4o-mini` tier **everywhere** (cheapest).
 - Semantic cache: numpy matrix of (query embedding → answer) at `data/semantic_cache.pkl`, cosine ≥ ~0.95 =
@@ -34,7 +36,8 @@ Hard deadline: **presentation at the end of August 2026**. Everything user-facin
 
 Total OpenAI spend until the presentation must stay **under $20** (realistic estimate: $2–5).
 - Cheapest model tier only; never upgrade models without asking the user.
-- Every OpenAI call goes through the cost logger (`app/costs.py`); warn loudly at $15 cumulative.
+- Spend is tracked on the **OpenAI dashboard** (user decision 15.07.2026: the local per-call logger
+  `app/costs.py` was removed — its code survives as a commented block; don't re-wire it without asking).
 - Semantic cache stays in front of the chat chain. Batch embeddings. Top-3 chunks max as LLM context.
 
 ## Data source: sud.mk (vsrm.mk) — scraper findings
@@ -71,14 +74,19 @@ similarity, framed honestly as statistics over past cases, **not legal advice**.
   stage-1 (situation-level) ranking and the case summaries.
 - **Conversation memory**: no server sessions — the browser keeps the chat history and sends it along;
   the backend condenses follow-ups into standalone questions (cheap LLM call) before retrieval/caching.
-- Self-check pass (second cheap call) before output; if max summary similarity below threshold → honest
-  **"Не знам"** answer, never hallucinate.
+- Verification is folded INTO the answer prompt (single LLM call, rule „САМОПРОВЕРКА“); the old two-call
+  answer + separate self-check path is kept commented in `chains.py`. If max summary similarity below
+  threshold → honest **"Не знам"** answer, never hallucinate.
 - All prompts and UI text in Macedonian.
 
 ## Working style (user is a student)
 
 - **Explain everything while building** — what each concept is and why it's used (RAG, hybrid search, HNSW,
   chunking, sessions/cookies, Docker…). Keep code small, simple, and readable over clever.
+- **Replaced code stays visible**: when an approach is replaced, keep the ENTIRE old implementation (the
+  whole function/block embodying the old concept) as ONE commented-out block next to the new code, labeled
+  `=== ПРЕТХОДЕН ПРИСТАП (до <датум>): ... === … === КРАЈ НА ПРЕТХОДНИОТ ПРИСТАП ===` — the user presents
+  these as the alternative paths they could have taken. Applies to every future change.
 - Each phase must end with the app runnable (`uvicorn main:app --reload`).
 
 ## Roadmap after August (do NOT build now)

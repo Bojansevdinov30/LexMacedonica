@@ -17,7 +17,7 @@ import re
 from langchain_openai import ChatOpenAI
 
 from app.config import CHAT_MODEL
-from app.costs import log_llm_response
+
 
 REGEX_RULES = [
     ("ЕМБГ", re.compile(r"\b\d{13}\b"), "«ЕМБГ»"),
@@ -57,7 +57,6 @@ def anonymize(text: str) -> dict:
     llm = ChatOpenAI(model=CHAT_MODEL, temperature=0,
                      model_kwargs={"response_format": {"type": "json_object"}})
     response = llm.invoke([("system", LLM_PROMPT), ("user", result)])
-    log_llm_response(response, label="anonymize")
 
     reasoning = ""
     try:

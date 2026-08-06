@@ -1,31 +1,4 @@
-"""Scraper for the Macedonian court decisions portal (sud.mk / vsrm.mk).
-
-How the site works (see all.devtools + CLAUDE.md):
-The portal is an IBM WebSphere Portal. Every session gets its own encoded URLs,
-so hardcoding endpoints fails — that's what makes it "hard to scrape". The trick:
-
-1. GET the "odluki" page with a requests.Session() → we receive cookies AND the
-   HTML that contains the *fresh* form action URL for this session.
-2. Collect every field of that form (like a real browser does), override the
-   filters we care about, and POST it back → results page.
-3. Each result box (div.smkBoxContent) holds court / case number / date /
-   an anonymized text preview and a download link with a caseId GUID.
-4. Pagination: re-POST the form with currentPage=N.
-5. PDF download: resolve the (relative) documentDownload link against the
-   current page URL, GET it, save as <caseId>.pdf.
-
-Hard-won lessons (verified against the live site, July 2026):
-- Relative URLs MUST be resolved against the <base href> tag, not the request
-  URL — otherwise the portal silently serves the page without results.
-- The server session is STICKY: search criteria persist server-side between
-  POSTs, so results can leak from the previous search. Use one SudMkScraper
-  instance (= one session) per filter set.
-- The `typeofcase`/`legalarea` dropdown filters are accepted but the decision
-  index doesn't match on them reliably (legalarea works, typeofcase returns 0).
-  The reliable way to filter by case type is the `casenumber` PREFIX, e.g.
-  "РО" = работни спорови (labor), "П1"…"П5" = civil litigation, "МАЛВП" = small
-  claims, "ТС" = commercial. casenumber search requires a court to be selected.
-"""
+"""Scraper for the Macedonian court decisions portal (sud.mk / vsrm.mk)."""
 from __future__ import annotations
 
 import json
@@ -42,8 +15,6 @@ from app.config import RAW_PDF_DIR, RAW_HTML_DIR, DATA_DIR
 
 ODLUKI_URL = "http://www.sud.mk/wps/portal/central/sud/odluki"
 
-# Values read out of the search form (all.devtools). More exist — these are the
-# ones our corpus needs.
 LEGAL_AREA = {"civil": "2", "criminal": "1", "administrative": "3"}
 TYPE_OF_CASE = {
     "labor": "98",          # Работни спорови
@@ -52,7 +23,7 @@ TYPE_OF_CASE = {
     "small_claims": "93",   # Граѓански спорови од мала вредност
 }
 
-# Basic (first-instance) courts — GUIDs from the court <select> on the site.
+# GUIDs from the court <select> on the site.
 COURTS = {
     "skopje_gragjanski": "5BD07829-2A09-430E-888D-F97D68F14F2D",  # Основен граѓански суд Скопје
     "bitola": "E17AF6B3-9F38-413A-8FEF-BDCED145ECF8",
@@ -75,7 +46,7 @@ HEADERS = {
     "Accept-Language": "mk-MK,mk;q=0.9,en;q=0.8",
 }
 
-REQUEST_DELAY_SECONDS = 2.5  # politeness: never hammer a public institution's site
+REQUEST_DELAY_SECONDS = 2.5  # politeness
 
 
 @dataclass
@@ -86,6 +57,13 @@ class CaseResult:
     date: str
     preview: str
     download_href: str
+    # from the collapsed «Повеќе податоци» section of each result box;
+    judge: str = ""            # Судија
+    legal_area: str = ""       # Правна област
+    case_type: str = ""        # Вид предмет
+    case_subtype: str = ""     # Подвид предмет
+    foundation_type: str = ""  # Вид основ
+    foundation: str = ""       # Основ
 
 
 class SudMkScraper:
@@ -107,9 +85,6 @@ class SudMkScraper:
     def _parse_form(self, html: str, fallback_url: str) -> None:
         soup = BeautifulSoup(html, "html.parser")
 
-        # WebSphere puts the session-state URL in <base href> — every relative
-        # link (form action, downloads) must be resolved against IT, not
-        # against the address we requested. Missing this = silent empty pages.
         base = soup.find("base", href=True)
         self.page_url = base["href"] if base else fallback_url
 
@@ -121,9 +96,7 @@ class SudMkScraper:
             )
         self.form_action = urljoin(self.page_url, form["action"])
 
-        # Collect ALL fields with their default values, exactly like a browser
-        # would submit them. Overriding only what we need keeps us identical
-        # to a real user in the server's eyes.
+        # Collect ALL fields with their default values
         fields: dict[str, str] = {}
         for inp in form.find_all("input"):
             name = inp.get("name")
@@ -150,11 +123,7 @@ class SudMkScraper:
     # ---------- step 2+4: search & paginate ----------
 
     def search(self, page: int = 1, **filters: str) -> tuple[list[CaseResult], int | None]:
-        """POST the search form. Returns (results, total_count).
-
-        filters use the raw form field names: court, legalarea, typeofcase,
-        dateVerifyFrom, dateVerifyTo (format dd.mm.yyyy), query, ...
-        """
+        """POST the search form. Returns (results, total_count)."""
         if self.form_action is None:
             self.open_search_page()
 
@@ -204,6 +173,21 @@ class SudMkScraper:
                     label = label_el.get_text(strip=True).rstrip(" :")
                     values[label] = value_el.get_text(strip=True)
 
+            # «Повеќе податоци» — the collapsed extra-data section. It is
+            # ALREADY in this same HTML (jQuery only toggles its visibility),
+            # so no extra request is needed. Select by CLASS scoped to this
+            # box: the portal reuses the same id= on every result box, so
+            # document-wide id lookups would always hit the first box only.
+            extended: dict[str, str] = {}
+            for cell in box.select("div.smkContentToggle div.cell50"):
+                label_el = cell.select_one("h5")
+                value_el = cell.select_one("h4")
+                if label_el and value_el:
+                    # label text is typeset as "Судија\n   :" — collapse the
+                    # whitespace before stripping the colon
+                    label = re.sub(r"\s+", " ", label_el.get_text()).strip().rstrip(" :")
+                    extended[label] = value_el.get_text(strip=True)
+
             preview_el = box.select_one("div.smkRow > p")
             results.append(CaseResult(
                 case_id=m.group(1).upper(),
@@ -212,6 +196,12 @@ class SudMkScraper:
                 date=values.get("Датум на одлука", ""),
                 preview=preview_el.get_text(" ", strip=True) if preview_el else "",
                 download_href=link["href"],
+                judge=extended.get("Судија", ""),
+                legal_area=extended.get("Правна област", ""),
+                case_type=extended.get("Вид предмет", ""),
+                case_subtype=extended.get("Подвид предмет", ""),
+                foundation_type=extended.get("Вид основ", ""),
+                foundation=extended.get("Основ", ""),
             ))
         return results, total
 

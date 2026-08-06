@@ -1,28 +1,30 @@
-"""Build every index the RAG needs, from the scraped data.
+"""Build everything the RAG needs, from the scraped data.
 
 Steps (each idempotent, so re-running is always safe):
   1. PDFs -> data/txt/*.txt            (PyMuPDF, free)
   2. txt + cases_meta.jsonl -> SQLite  (regex outcome extraction, free)
-  3. txt -> chunks -> Chroma vectors   (OpenAI embeddings, costs ~cents)
-     and a BM25 keyword index          (free)
+  3. txt -> chunks -> embeddings       (OpenAI, costs ~cents — but cached in
+     embeddings.npz so re-runs never re-pay) -> ChromaDB (data/chroma/)
 
 Run:  python -m app.ingest.build_index            # everything
       python -m app.ingest.build_index --no-embed # only the free steps
+
+(Не пуштај го ова додека uvicorn работи — Chroma му треба ексклузивен пристап
+до data/chroma/chroma.sqlite3 на Windows.)
 """
 import argparse
 import json
-import pickle
 import re
 
 from app.config import (
-    DATA_DIR, EMBEDDING_MODEL, EMBEDDINGS_PATH, FAISS_INDEX_PATH,
-    RAW_PDF_DIR, TXT_DIR, VECTOR_META_PATH,
+    DATA_DIR, EMBEDDING_MODEL, EMBEDDINGS_PATH, RAW_PDF_DIR, TXT_DIR,
 )
 from app.ingest.chunking import make_splitter
 from app.ingest.pdf_extract import extract_all
 from app.ingest.structure import Case, extract_outcome, get_engine
 
-BM25_PATH = DATA_DIR / "bm25.pkl"
+# останува само за rollback на старата верзија (other/) — не се пишува веќе
+# BM25_PATH = DATA_DIR / "bm25.pkl"
 
 
 def tokenize(text: str) -> list[str]:
@@ -69,6 +71,13 @@ def build_sqlite() -> dict[str, dict]:
                 "preview": m.get("preview", ""),
                 "outcome": outcome,
                 "outcome_sentence": sentence,
+                # секцијата «Повеќе податоци» од порталот
+                "judge": m.get("judge", ""),
+                "legal_area": m.get("legal_area", ""),
+                "case_type": m.get("case_type", ""),
+                "case_subtype": m.get("case_subtype", ""),
+                "foundation_type": m.get("foundation_type", ""),
+                "foundation": m.get("foundation", ""),
             }
             session.merge(Case(**fields))
             cases[case_id] = fields
@@ -90,32 +99,24 @@ def build_chunks(cases: dict[str, dict]) -> tuple[list[str], list[dict], list[st
             texts.append(chunk)
             ids.append(f"{case['case_id']}_{i}")
             metadatas.append({k: case[k] for k in
-                              ("case_id", "case_number", "court", "date", "outcome")})
+                              ("case_id", "case_number", "court", "date", "outcome",
+                               "judge", "legal_area", "case_type", "case_subtype",
+                               "foundation_type", "foundation")})
     print(f"Chunks: {len(texts)} from {len(cases)} cases")
     return texts, metadatas, ids
 
 
-def build_bm25(texts: list[str], metadatas: list[dict], ids: list[str]) -> None:
-    from rank_bm25 import BM25Okapi
+def build_vectors(texts: list[str], metadatas: list[dict], ids: list[str]) -> None:
+    """Embed NEW chunks (OpenAI) and upsert everything into Chroma.
 
-    bm25 = BM25Okapi([tokenize(t) for t in texts])
-    with BM25_PATH.open("wb") as f:
-        pickle.dump({"bm25": bm25, "texts": texts, "metadatas": metadatas, "ids": ids}, f)
-    print(f"BM25 index -> {BM25_PATH}")
-
-
-def build_faiss(texts: list[str], metadatas: list[dict], ids: list[str]) -> None:
-    """Embed new chunks (OpenAI) and (re)build the FAISS HNSW index.
-
-    The expensive part — the embeddings — is cached in embeddings.npz, so
-    re-running never re-pays OpenAI for chunks it already embedded. The HNSW
-    index itself is cheap to rebuild from the stored vectors.
+    The expensive part — the embeddings — is cached in embeddings.npz
+    (the npz is the ledger of what we already paid for, and the
+    backup that lets data/chroma/ be deleted and rebuilt at any time for $0).
     """
-    import faiss
     import numpy as np
     from langchain_openai import OpenAIEmbeddings
 
-    from app.costs import log_cost
+    from app.vectorstore import clean_meta, collection
 
     # load what we already embedded
     old_vectors, old_ids = np.zeros((0, 1536), dtype="float32"), []
@@ -134,9 +135,6 @@ def build_faiss(texts: list[str], metadatas: list[dict], ids: list[str]) -> None
             batch = new[start:start + BATCH]
             b_texts = [t for t, _, _ in batch]
             fresh.extend(embedder.embed_documents(b_texts))
-            # rough token estimate (~2 chars/token for Cyrillic) for the budget log
-            log_cost(EMBEDDING_MODEL, sum(len(t) // 2 for t in b_texts), 0,
-                     label="index_embed")
             print(f"Embedded {min(start + BATCH, len(new))}/{len(new)} new chunks")
         all_vectors = np.vstack([old_vectors, np.array(fresh, dtype="float32")])
         all_ids = old_ids + [i for _, _, i in new]
@@ -147,21 +145,17 @@ def build_faiss(texts: list[str], metadatas: list[dict], ids: list[str]) -> None
 
     # keep only vectors whose chunk still exists, ordered like `ids`
     by_id = {cid: row for cid, row in zip(all_ids, all_vectors)}
-    matrix = np.array([by_id[i] for i in ids], dtype="float32")
 
-    # normalize so inner product == cosine similarity
-    faiss.normalize_L2(matrix)
-    # Exact (flat) index, not HNSW: FAISS's HNSW construction crashes on this
-    # machine (OpenMP access violation, Py3.14/Windows), and at ~6K vectors
-    # exact search is instant with perfect recall anyway. HNSW only becomes
-    # worth its build cost around millions of vectors.
-    index = faiss.IndexFlatIP(matrix.shape[1])
-    index.add(matrix)
-    faiss.write_index(index, str(FAISS_INDEX_PATH))
-
-    with VECTOR_META_PATH.open("wb") as f:
-        pickle.dump({"ids": ids, "texts": texts, "metadatas": metadatas}, f)
-    print(f"FAISS index ({index.ntotal} vectors) -> {FAISS_INDEX_PATH}")
+    col = collection("chunks")
+    BATCH = 1000  # Chroma's max add/upsert batch is ~5.4K
+    for s in range(0, len(ids), BATCH):
+        col.upsert(
+            ids=ids[s:s + BATCH],
+            embeddings=[by_id[i].tolist() for i in ids[s:s + BATCH]],
+            documents=texts[s:s + BATCH],
+            metadatas=[clean_meta(m) for m in metadatas[s:s + BATCH]],
+        )
+    print(f"Chroma 'chunks': {col.count()} vectors")
 
 
 def main() -> None:
@@ -176,12 +170,11 @@ def main() -> None:
 
     cases = build_sqlite()
     texts, metadatas, ids = build_chunks(cases)
-    build_bm25(texts, metadatas, ids)
 
     if args.no_embed:
         print("Skipping embeddings (--no-embed). Run again without it when ready.")
         return
-    build_faiss(texts, metadatas, ids)
+    build_vectors(texts, metadatas, ids)
 
 
 if __name__ == "__main__":

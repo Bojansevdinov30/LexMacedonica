@@ -1,68 +1,155 @@
 # LexMacedonica
 
-<p align="center"><img src="static/img/logo.png" alt="LexMacedonica" width="220"></p>
+<p align="center"><img src="static/img/logo-top-nobg.jpg" alt="LexMacedonica" width="300"></p>
 
-АИ (RAG) асистент за македонско право. Четири интерфејси:
+**An AI legal assistant for Macedonian law** — a Retrieval-Augmented Generation (RAG) web app
+built as a student project. You describe a real-life situation in Macedonian; it answers with
+the most likely outcome, an honest **probability computed from real court decisions** (not
+invented by the model), and citations of the most similar past cases.
 
-| Таб | Што прави |
+> ⚖️ Informational only — nothing this app produces is legal advice.
+
+## The four interfaces
+
+| Tab | What it does |
 |---|---|
-| **Правен асистент** | Опишуваш ситуација → најверојатен исход + веројатност (%) пресметана од реални слични случаи, со цитирани предмети |
-| **Симулација** | 4 АИ агенти (судија, двајца адвокати, наратор) го одигруваат твојот случај |
-| **Адвокати** | Одговори засновани на закони со точни цитати по член + судска пракса; видливо резонирање |
-| **Администрација** | Анонимизација на документи (имиња, ЕМБГ, адреси...) со објаснување |
+| **Правен асистент** | Describe your situation → likely outcome + probability % derived from similar past cases, with cited decisions (court, case number, date, summary, full text on click) |
+| **Симулација** | Four AI agents (judge, both lawyers, narrator) play out your scenario as a live courtroom — every line **streams token by token** |
+| **Адвокати** | Law-first answers for professionals with exact article citations (закон + член), case law as support, and the model's **reasoning visible** in a collapsible panel |
+| **Администрација** | Document anonymization (names, ЕМБГ, addresses, accounts…) — deterministic regex rules first, LLM for the rest, with a diff table explaining every replacement |
 
-Податоци: 370 одлуки за работни спорови (РО) од 13 основни судови (sud.mk) +
-Закон за работните односи (2023) + Закон за облигационите односи, индексирани по член.
+**Corpus**: 581 labor-dispute decisions (РО) from 19 basic courts scraped from the official
+portal [sud.mk], with per-case metadata (court, date, outcome, judge, legal area, case
+type/subtype, legal basis) + two laws (Закон за работните односи 2023, Закон за
+облигационите односи) chunked **by article** so citations are exact.
 
-## Локално стартување
+## How answering works
+
+```
+question (+ browser-side chat history → condensed into a standalone question)
+   │
+   ▼
+semantic cache ──hit──► instant answer (same meaning = same answer, zero cost)
+   │ miss
+   ▼
+stage 1 · case level:  search per-case LLM SUMMARIES ("what is this case about")
+                       → the 12 cases whose SITUATION matches best
+   ▼
+stage 2 · passage level:  hybrid search = BM25 keywords + vector search,
+                          fused with Reciprocal Rank Fusion, restricted
+                          to those cases → top-3 passages
+   ▼
+probability = similarity-weighted share of real outcomes among the most
+              similar cases (merits decisions only; < 3 comparable → no number)
+   ▼
+ONE LLM call with self-check folded into the prompt («САМОПРОВЕРКА» rule).
+Too low similarity? → honest «Не знам», the model is never even called.
+```
+
+Why two stages: chunk search matches *words*, summaries match *situations* — a case that
+mentions «куче» once in a witness statement should not surface for a dog-bite question.
+Why hybrid: vectors understand paraphrases («ме отпуштија» ≈ «престанок на работен однос»),
+BM25 nails exact terms like «член 101». RRF merges both rankings.
+
+## Stack
+
+- **FastAPI** + Jinja2 + plain HTML/CSS/JS (no build step, no frontend framework)
+- **ChromaDB** — one persistent store for vectors + texts + metadata
+  (collections: case chunks, case summaries, law articles, semantic cache);
+  metadata filtering at query time and metadata updates without re-embedding
+- **BM25** (`rank_bm25`) built at startup from the same store — keyword leg of the hybrid search
+- **SQLite** (SQLAlchemy) — structured case metadata: outcome (regex-extracted from the
+  dispositive), judge, legal area, case type/subtype, legal basis, LLM summary
+- **OpenAI** `gpt-4o-mini` + `text-embedding-3-small` via LangChain — cheapest tier on
+  purpose; embeddings are cached in `.npz` ledgers so re-runs never re-pay
+- **slowapi** per-IP rate limiting on every LLM-calling endpoint (budget protection)
+- **NDJSON streaming** for the courtroom simulation (plain `fetch` + reader, no SSE machinery)
+- **PyMuPDF** for PDF text extraction (decisions are text-based, pre-anonymized by the court)
+
+Total OpenAI spend for the whole project: **a few dollars** — tracked on the OpenAI dashboard.
+
+## Run it locally
 
 ```bash
-# 1. зависности (Python 3.12+)
+# 1. dependencies (Python 3.12+)
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\pip install -r requirements.txt          # Windows
+# source .venv/bin/activate && pip install -r ...      # Linux/macOS
 
-# 2. клуч
-copy .env.example .env        # и внеси го твојот OPENAI_API_KEY
+# 2. secrets
+copy other\.env.example .env       # then put your OPENAI_API_KEY inside
 
-# 3. податоци (еднократно; прескокни ако data/ веќе постои)
-python -m app.scraper.run_scrape --prefix РО --limit 30   # симни одлуки
-python -m app.ingest.build_index                          # индексирај случаи
-python -m app.ingest.summarize                            # резимеа по случај (за пребарување по ситуација)
-python -m app.lawyer.download_laws                        # симни закони
-python -m app.lawyer.build_laws                           # индексирај закони
+# 3. data pipeline (one-time; skip if data/ already exists)
+python -m app.scraper.run_scrape --prefix РО --limit 30   # download decisions from sud.mk
+python -m app.ingest.build_index                          # PDF → text → SQLite → chunks → vectors
+python -m app.ingest.summarize                            # per-case summaries (situation search)
+python -m app.lawyer.download_laws                        # download the laws
+python -m app.lawyer.build_laws                           # article-level law index
 
-# 4. старт
+# 4. start
 uvicorn main:app --reload
-# -> http://127.0.0.1:8000
+# app       → http://127.0.0.1:8000
+# API docs  → http://127.0.0.1:8000/docs   (only /api/* endpoints — pages are excluded)
 ```
 
-## Docker
+Or with Docker: `docker compose up --build` (needs `.env` and an already-built `data/`).
 
-```bash
-docker compose up --build
-# -> http://localhost:8000  (треба .env и веќе изграден data/ фолдер)
+## API
+
+HTML pages live at `/`, `/simulacija`, `/advokati`, `/administracija` and are deliberately
+kept **out of the OpenAPI schema**; everything under `/api/*` is JSON and testable from
+`/docs`:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/chat` | main assistant (question + browser-kept history) |
+| `GET  /api/case/{id}/text` | full decision text for a citation card |
+| `POST /api/lawyer` | law-first professional answer with reasoning |
+| `POST /api/simulate/turn` | one streamed courtroom turn (NDJSON: meta → token… → final) |
+| `POST /api/anonymize` | document anonymization with replacement table |
+
+## Scraping sud.mk (the fun part)
+
+The court portal is an IBM WebSphere Portal: session-encoded URLs, sticky server-side search
+state, and relative links that must be resolved against `<base href>` — naive scraping gets
+silently empty pages. The scraper mimics a real browser: one `requests.Session` per filter
+set, harvests *every* form field with its defaults, overrides only the filters, and parses
+each result box including the collapsed «Повеќе податоци» section (judge, legal area, case
+type, subtype, legal basis). Politeness delay of 2.5 s between requests, resume support at
+every step, raw HTML saved for debugging.
+
+## Project structure
+
+```
+main.py            app setup, HTML page routes, router registration
+app/
+  config.py        pydantic-settings tunables + paths (env-overridable, LEX_ prefix)
+  schemas.py       Pydantic request models
+  limits.py        shared slowapi limiter
+  vectorstore.py   ChromaDB client, cosine similarity helper, metadata hygiene
+  routers/         one APIRouter per tab (chat, lawyer, simulation, admin)
+  scraper/         sud.mk scraper + CLI
+  ingest/          PDF → text → outcomes (regex) → SQLite → chunks → vectors; summaries
+  rag/             two-stage retriever, probability, answer chain + self-check, semantic cache
+  agents/          courtroom simulation (4 roles, 6 scripted turns, streaming)
+  lawyer/          laws: download, article-level index, law-first answers
+  admin/           anonymization (regex rules + LLM pass)
+ideas/             documented experiments NOT wired into the app (e.g. bge-reranker pipeline)
+other/             previous implementations & unused files — the "roads not taken" archive
+static/ templates/ frontend (vanilla JS, one small shared common.js)
 ```
 
-## Како работи (кратко)
+Two conventions worth knowing when reading the code:
 
-Прашање (+историја на разговорот од прелистувачот → се препишува во самостојно
-прашање) → семантички кеш → **двостепено пребарување**: прво по РЕЗИМЕА на
-случаите („за што е случајот“ — совпаѓа ситуации, не случајни зборови), па
-**хибридно пребарување** (BM25 + FAISS вектори, Reciprocal Rank Fusion) на
-пасуси САМО во тие случаи → топ-3 извадоци како контекст → **веројатност** =
-тежински удел на исходите кај најсличните случаи (реална статистика, не
-измислена од моделот) → LLM одговор → **самопроверка** → ако сличноста е
-премногу ниска: искрено „Не знам“.
+- **Replaced approaches stay visible**: superseded code is either kept as a labeled
+  commented block («ПРЕТХОДЕН ПРИСТАП») next to its replacement, or preserved as a whole
+  file under `other/` — the project's history of alternatives is part of the learning.
+- **Honesty over impressiveness**: the probability is framed as statistics over past cases,
+  the model self-checks against its sources, and low similarity produces «Не знам» instead
+  of a hallucination.
 
-Секој OpenAI повик се логира во `data/costs.json` (буџет < $20).
+## Author
 
-## Структура
+**Bojan Sevdinov** — LexMacedonica © 2026
 
-```
-app/scraper/   sud.mk скрејпер (WebSphere портал: сесии, base href, caseId)
-app/ingest/    PDF → текст → исходи (regex) → SQLite → chunks → FAISS + BM25
-app/rag/       хибриден retriever, веројатност, одговор+самопроверка, кеш
-app/agents/    судска симулација (4 улоги, 6 реплики)
-app/lawyer/    закони: симнување, индекс по член, law-first одговори
-app/admin/     анонимизација (regex правила + АИ за имиња/адреси/фирми)
-```
+[sud.mk]: http://www.sud.mk/wps/portal/central/sud/odluki

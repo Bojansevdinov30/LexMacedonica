@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from sqlalchemy import create_engine, String, Text
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 
 from app.config import SQLITE_PATH
@@ -30,19 +31,41 @@ class Case(Base):
     outcome: Mapped[str] = mapped_column(String(30), default="НЕПОЗНАТО")
     outcome_sentence: Mapped[str] = mapped_column(Text, default="")
     preview: Mapped[str] = mapped_column(Text, default="")
+    summary: Mapped[str] = mapped_column(Text, default="")      # LLM summary
+    # секцијата «Повеќе податоци» од sud.mk:
+    judge: Mapped[str] = mapped_column(String(120), default="")
+    legal_area: Mapped[str] = mapped_column(String(80), default="")
+    case_type: Mapped[str] = mapped_column(String(80), default="")
+    case_subtype: Mapped[str] = mapped_column(String(120), default="")
+    foundation_type: Mapped[str] = mapped_column(String(120), default="")
+    foundation: Mapped[str] = mapped_column(String(200), default="")
+
+
+def ensure_case_columns(engine) -> None:
+    """SQLite migration: create_all never ADDS columns to an existing table,
+    so compare the live schema with the model and ALTER TABLE the gap.
+    (Generalization of the old ensure_summary_column from summarize.py.)"""
+    with engine.connect() as conn:
+        live = {r[1] for r in conn.execute(sql_text("PRAGMA table_info(cases)"))}
+        for col in Case.__table__.columns:
+            if col.name not in live:
+                conn.execute(sql_text(
+                    f"ALTER TABLE cases ADD COLUMN {col.name} TEXT DEFAULT ''"))
+                print(f"added cases.{col.name} column")
+        conn.commit()
 
 
 def get_engine():
     SQLITE_PATH.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(f"sqlite:///{SQLITE_PATH}")
     Base.metadata.create_all(engine)
+    ensure_case_columns(engine)   # existing DBs get any newly added columns
     return engine
 
 
 # --- Outcome extraction ----------------------------------------------------
 
-# Order matters: more specific patterns first. Matched against the dispositive
-# (text right after the decision header), uppercased and whitespace-collapsed.
+# Order matters: more specific patterns first.
 OUTCOME_PATTERNS: list[tuple[str, str]] = [
     ("ДЕЛУМНО УСВОЕНО", r"ДЕЛУМНО\s+СЕ\s+УСВОЈУВА|СЕ\s+УСВОЈУВА\s+ДЕЛУМНО"
                         r"|ДЕЛУМНО\s+СЕ\s+УВАЖУВА|СЕ\s+УВАЖУВА\s+ДЕЛУМНО"),

@@ -1,19 +1,9 @@
-// Lawyer assistant: law-first answers with visible reasoning (collapsible)
-// and a mode toggle (laws+cases / cases only).
+/* Lawyer assistant: law-first answers with visible reasoning (collapsible).*/
 
 const win = document.getElementById("lawyer-window");
 const form = document.getElementById("lawyer-form");
 const textarea = document.getElementById("lawyer-text");
 const sendBtn = document.getElementById("lawyer-send");
-
-function addMsg(text, who) {
-    const div = document.createElement("div");
-    div.className = `msg msg-${who}`;
-    div.textContent = text;
-    win.appendChild(div);
-    win.scrollTop = win.scrollHeight;
-    return div;
-}
 
 function renderAnswer(data) {
     const div = document.createElement("div");
@@ -22,7 +12,9 @@ function renderAnswer(data) {
     if (data.reasoning) {
         const details = document.createElement("details");
         details.className = "reasoning";
-        details.innerHTML = "<summary>🧠 Резонирање на моделот</summary>";
+        const summary = document.createElement("summary");
+        summary.textContent = "🧠 Резонирање на моделот";
+        details.appendChild(summary);
         const body = document.createElement("div");
         body.className = "reasoning-body";
         body.textContent = data.reasoning;
@@ -37,9 +29,16 @@ function renderAnswer(data) {
     if (data.sources && data.sources.length) {
         const src = document.createElement("div");
         src.className = "sources";
-        src.innerHTML = "<strong>Извори:</strong> " + data.sources
-            .map(s => `<span class="source-chip">${s.type === "закон" ? "📜" : "⚖️"} ${s.ref}</span>`)
-            .join(" ");
+        const label = document.createElement("strong");
+        label.textContent = "Извори:";
+        src.appendChild(label);
+        for (const s of data.sources) {
+            src.appendChild(document.createTextNode(" "));
+            const chip = document.createElement("span");
+            chip.className = "source-chip";
+            chip.textContent = `${s.type === "закон" ? "📜" : "⚖️"} ${s.ref}`;
+            src.appendChild(chip);
+        }
         div.appendChild(src);
     }
 
@@ -51,37 +50,24 @@ form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const question = textarea.value.trim();
     if (!question) return;
-    const mode = document.querySelector('input[name="mode"]:checked').value;
 
-    addMsg(question, "user");
+    addMessage(win, question, "user");
     textarea.value = "";
     sendBtn.disabled = true;
-    const thinking = addMsg(mode === "laws"
-        ? "Пребарувам закони и пракса…" : "Пребарувам судска пракса…", "bot");
+    const thinking = addMessage(win, "Пребарувам закони и пракса…", "bot");
     thinking.classList.add("msg-thinking");
 
     try {
-        const res = await fetch("/api/lawyer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ question, mode }),
-        });
-        const data = await res.json();
+        const data = await postJSON("/api/lawyer", { question });
         thinking.remove();
         renderAnswer(data);
     } catch (err) {
         thinking.remove();
-        addMsg("Се појави грешка. Обидете се повторно.", "bot");
-        console.error(err);
+        showError(win, err);
     } finally {
         sendBtn.disabled = false;
         textarea.focus();
     }
 });
 
-textarea.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        form.requestSubmit();
-    }
-});
+attachEnterSubmit(textarea, form);

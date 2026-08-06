@@ -12,20 +12,16 @@ Run:  python -m app.ingest.summarize          (only summarizes what's missing)
 """
 from __future__ import annotations
 
-import pickle
-
-import faiss
-import numpy as np
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from app.config import CHAT_MODEL, DATA_DIR, EMBEDDING_MODEL, TXT_DIR
-from app.costs import log_llm_response, log_cost
+
 from app.ingest.structure import Case, get_engine
 
-SUMMARY_INDEX_PATH = DATA_DIR / "summaries.index"
-SUMMARY_META_PATH = DATA_DIR / "summaries_meta.pkl"
+# SUMMARY_INDEX_PATH = DATA_DIR / "summaries.index"
+# SUMMARY_META_PATH = DATA_DIR / "summaries_meta.pkl"
 
 SUMMARY_PROMPT = (
     "Резимирај ја оваа судска одлука во 2-3 реченици на македонски: каков вид "
@@ -62,11 +58,9 @@ def generate_missing_summaries() -> None:
             txt_path = TXT_DIR / f"{case_id}.txt"
             if not txt_path.exists():
                 continue
-            # the essence of a decision is at the start (parties, claim,
-            # dispositive) — 3500 chars is enough and keeps the call cheap
+            # the essence of a decision is at the start, 3500 chars is enough and keeps the call cheap
             excerpt = txt_path.read_text(encoding="utf-8")[:3500]
             response = llm.invoke([("system", SUMMARY_PROMPT), ("user", excerpt)])
-            log_llm_response(response, label="case_summary")
             session.execute(
                 sql_text("UPDATE cases SET summary = :s WHERE case_id = :cid"),
                 {"s": response.content.strip(), "cid": case_id},
@@ -78,37 +72,55 @@ def generate_missing_summaries() -> None:
     print("summaries done")
 
 
-def build_summary_index() -> None:
-    """Embed every case summary into its own FAISS index (case-level search)."""
+def sync_summaries_to_chroma() -> None:
+    """Embed only the case summaries Chroma doesn't have yet, then add them."""
+    from app.vectorstore import clean_meta, collection
+
     engine = get_engine()
     with Session(engine) as session:
         rows = session.execute(sql_text(
-            "SELECT case_id, case_number, court, date, outcome, summary "
+            "SELECT case_id, case_number, court, date, outcome, summary, "
+            "judge, legal_area, case_type, case_subtype, foundation_type, foundation "
             "FROM cases WHERE summary != ''"
         )).fetchall()
 
+    col = collection("summaries")
+    known = set(col.get(include=[])["ids"])  # ids only — cheap
     metas = [dict(case_id=r[0], case_number=r[1], court=r[2], date=r[3],
-                  outcome=r[4], summary=r[5]) for r in rows]
-    print(f"embedding {len(metas)} case summaries")
+                  outcome=r[4], summary=r[5], judge=r[6], legal_area=r[7],
+                  case_type=r[8], case_subtype=r[9], foundation_type=r[10],
+                  foundation=r[11]) for r in rows]
+    new = [m for m in metas if m["case_id"] not in known]
 
-    embedder = OpenAIEmbeddings(model=EMBEDDING_MODEL)
-    vectors = []
-    for start in range(0, len(metas), 200):
-        batch = [m["summary"] for m in metas[start:start + 200]]
-        vectors.extend(embedder.embed_documents(batch))
-        log_cost(EMBEDDING_MODEL, sum(len(t) // 2 for t in batch), 0,
-                 label="summary_embed")
+    if new:
+        print(f"embedding {len(new)} new case summaries")
+        embedder = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+        for start in range(0, len(new), 200):
+            batch = new[start:start + 200]
+            vectors = embedder.embed_documents([m["summary"] for m in batch])
+            col.add(
+                ids=[m["case_id"] for m in batch],
+                embeddings=vectors,
+                documents=[m["summary"] for m in batch],  # the searched text
+                metadatas=[clean_meta({k: v for k, v in m.items() if k != "summary"})
+                           for m in batch],
+            )
 
-    matrix = np.array(vectors, dtype="float32")
-    faiss.normalize_L2(matrix)
-    index = faiss.IndexFlatIP(matrix.shape[1])
-    index.add(matrix)
-    faiss.write_index(index, str(SUMMARY_INDEX_PATH))
-    with SUMMARY_META_PATH.open("wb") as f:
-        pickle.dump(metas, f)
-    print(f"summary index ({index.ntotal} cases) -> {SUMMARY_INDEX_PATH}")
+    # metadata refresh for the EXISTING rows (без ре-embedding, $0): ако некое
+    # поле е поправено во SQLite (преку cases_meta.jsonl + build_index),
+    # исправката да стигне и до Chroma
+    existing = [m for m in metas if m["case_id"] in known]
+    for start in range(0, len(existing), 1000):
+        batch = existing[start:start + 1000]
+        col.update(
+            ids=[m["case_id"] for m in batch],
+            metadatas=[clean_meta({k: v for k, v in m.items() if k != "summary"})
+                       for m in batch],
+        )
+    print(f"summaries: Chroma holds {col.count()} "
+          f"({len(new)} new, metadata refreshed for {len(existing)})")
 
 
 if __name__ == "__main__":
     generate_missing_summaries()
-    build_summary_index()
+    sync_summaries_to_chroma()
