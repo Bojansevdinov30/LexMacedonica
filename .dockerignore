@@ -14,4 +14,7 @@ __pycache__/
 data/
 
 all.devtools
-case_example.pdf
+other/case_example.pdf
+
+# archive of previous implementations + unused files - not needed in the image
+other/
