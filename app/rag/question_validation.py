@@ -9,7 +9,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from app.config import CHAT_MODEL, MIN_MACEDONIAN_LETTER_RATIO
+from app.config import (
+    CHAT_MODEL,
+    LLM_QUESTION_VALIDATION_ENABLED,
+    MIN_MACEDONIAN_LETTER_RATIO,
+)
 
 # Lower-case Macedonian alphabet. Upper-case input is lowered before checking.
 MACEDONIAN_ALPHABET = set("абвгдѓежзѕијклљмнњопрстќуфхцчџш")
@@ -80,11 +84,14 @@ def _classifier():
 
 
 def validate_question(question: str, has_history: bool = False) -> bool:
-    """Run deterministic validation first, then semantic LLM validation."""
+    """Run deterministic validation and, when enabled, LLM validation."""
     deterministic = deterministic_check(question)
     if not deterministic.valid:
         print(f"[validation] rejected deterministically: {deterministic.reason}")
         return False
+
+    if not LLM_QUESTION_VALIDATION_ENABLED:
+        return True
 
     result = _classifier().invoke({
         "question": question,

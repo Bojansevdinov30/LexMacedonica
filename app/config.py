@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # Validation counts alphabetic characters only. Emails, URLs, spaces,
     # punctuation and numbers are not part of this ratio.
     MIN_MACEDONIAN_LETTER_RATIO: float = 0.80
+    LLM_QUESTION_VALIDATION_ENABLED: bool = True
 
     model_config = SettingsConfigDict(env_prefix="LEX_", extra="ignore")
 
@@ -71,3 +72,4 @@ RETRIEVED_CHUNKS = settings.RETRIEVED_CHUNKS
 RERANK_POOL = settings.RERANK_POOL
 RERANK_MAX_LENGTH = settings.RERANK_MAX_LENGTH
 MIN_MACEDONIAN_LETTER_RATIO = settings.MIN_MACEDONIAN_LETTER_RATIO
+LLM_QUESTION_VALIDATION_ENABLED = settings.LLM_QUESTION_VALIDATION_ENABLED
