@@ -1,11 +1,6 @@
 """Build the laws index: PDF -> articles (Член N) -> embeddings -> ChromaDB.
 
-Laws are chunked BY ARTICLE, not by size: a lawyer needs the exact "член 76
-од ЗРО" citation, and an article is the natural self-contained unit of a law.
-Very long articles get sub-split so embeddings stay focused.
-
-Run:  python -m app.lawyer.build_laws     (со запрен uvicorn — Windows locking)
-"""
+Run:  python -m app.lawyer.build_laws"""
 import re
 
 import numpy as np
@@ -18,8 +13,6 @@ from app.ingest.chunking import make_splitter
 from app.vectorstore import collection
 
 LAWS_DIR = DATA_DIR / "laws"
-# LAWS_INDEX_PATH = DATA_DIR / "laws.index"       # остануваат само за rollback
-# LAWS_META_PATH = DATA_DIR / "laws_meta.pkl"     # (other/) — не се пишуваат
 LAWS_EMB_PATH = DATA_DIR / "laws_embeddings.npz"
 
 # "Член 15", "Член 15-а", "Член  4" (double spaces happen in the PDFs)

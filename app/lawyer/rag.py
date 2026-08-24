@@ -1,11 +1,4 @@
-"""Lawyer assistant (Interface 3): law-first retrieval + visible reasoning.
-
-Differences vs the citizen chat:
-- retrieval is LAW-FIRST (exact article citations) with cases as support;
-  a "cases" mode exists to answer from case law only
-- the model's REASONING is returned and shown to the user (lawyers want to
-  see how a conclusion was reached, citizens just want the conclusion)
-"""
+"""Lawyer assistant (Interface 3): law-first retrieval + visible reasoning."""
 from __future__ import annotations
 
 import json
@@ -40,8 +33,6 @@ def laws_available() -> bool:
 
 def search_laws(question: str, k: int = 4,
                 query_vector: list[float] | None = None) -> list[dict]:
-    # reuse the caller's embedding when it has one (explicit None check —
-    # an empty list must not silently trigger a re-embed)
     if query_vector is None:
         query_vector = embed_query(question)
     r = collection("laws").query(query_embeddings=[query_vector], n_results=k,
@@ -55,8 +46,6 @@ def search_laws(question: str, k: int = 4,
 
 def lawyer_answer(question: str, mode: str = "laws") -> dict:
     """mode: "laws" (закони + пракса) or "cases" (само судска пракса)."""
-    # ONE embedding, shared by the laws search and the case retrieval below —
-    # the question text is identical, so re-embedding it was a wasted call
     qvec = embed_query(question)
     sources_text, sources_list = [], []
 

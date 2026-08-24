@@ -25,9 +25,20 @@ class Settings(BaseSettings):
     CHUNK_SIZE_TOKENS: int = 800
     CHUNK_OVERLAP_RATIO: float = 0.15
     TOP_CHUNKS_FOR_LLM: int = 3  # keep context small = less noise + cheaper
-    TOP_CASES_FOR_PROBABILITY: int = 10
+    TOP_CASES_FOR_PROBABILITY: int = 5
     MIN_SIMILARITY_FOR_ANSWER: float = 0.43
     SEMANTIC_CACHE_THRESHOLD: float = 0.95
+
+    # --- Local cross-encoder reranker ---
+    RERANKER_ENABLED: bool = True
+    RERANK_MODEL: str = "BAAI/bge-reranker-v2-m3"
+    RETRIEVED_CHUNKS: int = 30
+    RERANK_POOL: int = 10
+    RERANK_MAX_LENGTH: int = 1024
+
+    # Validation counts alphabetic characters only. Emails, URLs, spaces,
+    # punctuation and numbers are not part of this ratio.
+    MIN_MACEDONIAN_LETTER_RATIO: float = 0.80
 
     model_config = SettingsConfigDict(env_prefix="LEX_", extra="ignore")
 
@@ -54,3 +65,9 @@ TOP_CHUNKS_FOR_LLM = settings.TOP_CHUNKS_FOR_LLM
 TOP_CASES_FOR_PROBABILITY = settings.TOP_CASES_FOR_PROBABILITY
 MIN_SIMILARITY_FOR_ANSWER = settings.MIN_SIMILARITY_FOR_ANSWER
 SEMANTIC_CACHE_THRESHOLD = settings.SEMANTIC_CACHE_THRESHOLD
+RERANKER_ENABLED = settings.RERANKER_ENABLED
+RERANK_MODEL = settings.RERANK_MODEL
+RETRIEVED_CHUNKS = settings.RETRIEVED_CHUNKS
+RERANK_POOL = settings.RERANK_POOL
+RERANK_MAX_LENGTH = settings.RERANK_MAX_LENGTH
+MIN_MACEDONIAN_LETTER_RATIO = settings.MIN_MACEDONIAN_LETTER_RATIO

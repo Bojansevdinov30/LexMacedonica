@@ -6,8 +6,6 @@ Two passes, cheapest first:
 2. LLM for what regex can't see: names of people, addresses, company names —
    returns a JSON list of replacements that we apply with plain str.replace.
 
-The reasoning is shown to the user (admin interfaces should be auditable —
-you must be able to check WHY something was replaced before filing it).
 """
 from __future__ import annotations
 
@@ -29,7 +27,7 @@ REGEX_RULES = [
 LLM_PROMPT = (
     "Ти си алатка за анонимизација на македонски правни документи. Најди ги "
     "СИТЕ лични податоци во текстот: имиња и презимиња на физички лица, адреси, "
-    "називи на фирми/правни лица.\n"
+    "градови, држави, називи на фирми/правни лица.\n"
     "НЕ ги анонимизирај: судови, институции, закони, судии и адвокати во "
     "службена улога.\n"
     "Врати JSON со точно две полиња:\n"

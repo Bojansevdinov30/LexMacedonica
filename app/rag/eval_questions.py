@@ -1,9 +1,5 @@
 """Quick RAG quality check: run typical questions through the full chain.
-
-Run:  python -m app.rag.eval_questions
-Prints the retrieval confidence, computed probability, cited cases and answer
-for each question — the fastest way to see whether tuning is needed.
-"""
+Run:  python -m app.rag.eval_questions"""
 
 from app.rag.chains import answer_question
 from app.rag.retriever import retrieve

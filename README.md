@@ -26,30 +26,29 @@ type/subtype, legal basis) + two laws (Закон за работните одн
 ## How answering works
 
 ```
-question (+ browser-side chat history → condensed into a standalone question)
+question → deterministic Cyrillic checks → cheap Macedonian/meaning classifier
+         (+ browser-side history → condensed only when history exists)
    │
    ▼
-semantic cache ──hit──► instant answer (same meaning = same answer, zero cost)
+semantic cache ──hit──► reuse answer (skips retrieval, reranker and answer LLM)
    │ miss
    ▼
-stage 1 · case level:  search per-case LLM SUMMARIES ("what is this case about")
-                       → the 12 cases whose SITUATION matches best
+corpus-wide hybrid search: BM25 keywords + vector search over all chunks,
+                           fused with Reciprocal Rank Fusion → top 30
    ▼
-stage 2 · passage level:  hybrid search = BM25 keywords + vector search,
-                          fused with Reciprocal Rank Fusion, restricted
-                          to those cases → top-3 passages
+local cross-encoder: rerank the first 10 candidates → top-3 passages
    ▼
-probability = similarity-weighted share of real outcomes among the most
-              similar cases (merits decisions only; < 3 comparable → no number)
+probability = deduplicate cases represented in the reranked 10, then take the
+              relevance-weighted share of real outcomes among up to 5 cases
+              (merits decisions only; < 3 comparable → no number)
    ▼
 ONE LLM call with self-check folded into the prompt («САМОПРОВЕРКА» rule).
 Too low similarity? → honest «Не знам», the model is never even called.
 ```
 
-Why two stages: chunk search matches *words*, summaries match *situations* — a case that
-mentions «куче» once in a witness statement should not surface for a dog-bite question.
 Why hybrid: vectors understand paraphrases («ме отпуштија» ≈ «престанок на работен однос»),
-BM25 nails exact terms like «член 101». RRF merges both rankings.
+BM25 nails exact terms like «член 101». RRF cheaply merges both rankings, then the
+multilingual cross-encoder reads each of the best ten question/passage pairs together.
 
 ## Stack
 
@@ -58,6 +57,8 @@ BM25 nails exact terms like «член 101». RRF merges both rankings.
   (collections: case chunks, case summaries, law articles, semantic cache);
   metadata filtering at query time and metadata updates without re-embedding
 - **BM25** (`rank_bm25`) built at startup from the same store — keyword leg of the hybrid search
+- **Sentence Transformers** + `BAAI/bge-reranker-v2-m3` — local multilingual cross-encoder;
+  loaded once per process and used only on ten candidates (RRF remains the safe fallback)
 - **SQLite** (SQLAlchemy) — structured case metadata: outcome (regex-extracted from the
   dispositive), judge, legal area, case type/subtype, legal basis, LLM summary
 - **OpenAI** `gpt-4o-mini` + `text-embedding-3-small` via LangChain — cheapest tier on
@@ -75,6 +76,9 @@ Total OpenAI spend for the whole project: **a few dollars** — tracked on the O
 python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt          # Windows
 # source .venv/bin/activate && pip install -r ...      # Linux/macOS
+
+# The first accepted, non-cached question downloads the ~2.3 GB reranker.
+# Later requests reuse both the downloaded files and one in-process model instance.
 
 # 2. secrets
 copy other\.env.example .env       # then put your OPENAI_API_KEY inside

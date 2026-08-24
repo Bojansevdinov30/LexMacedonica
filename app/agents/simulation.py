@@ -1,11 +1,4 @@
-"""Courtroom simulation (Interface 2): four agents play out the user's case.
-
-Simplest possible multi-agent design: a FIXED turn script (narrator, plaintiff
-lawyer, defense lawyer, one rebuttal each, judge). Every turn is one LLM call
-that sees the scenario + the transcript so far, with a role-specific system
-prompt. The frontend asks for one turn at a time, so the courtroom "types"
-turn by turn and the server stays stateless.
-"""
+"""Courtroom simulation (Interface 2): four agents play out the user's case."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -79,13 +72,7 @@ def next_turn(scenario: str, history: list[dict]) -> dict | None:
 
 
 def stream_turn(scenario: str, history: list[dict]):
-    """Streaming variant of next_turn: yields NDJSON-ready dicts.
-
-    Рeдosлед на настани: meta (кој зборува — познато ПРЕД LLM-повикот) →
-    token* (парчиња текст како што ги генерира моделот) → final (целиот
-    текст + done). next_turn останува како непроточна референца — истата
-    логика, еден invoke() наместо stream().
-    """
+    """Streaming variant of next_turn: yields NDJSON-ready dicts."""
     step = len(history)
     if step >= len(SCRIPT):
         yield {"type": "final", "text": "", "done": True}

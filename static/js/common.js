@@ -1,5 +1,4 @@
-/* Заеднички помошни функции за сите табови (вчитано од base.html пред
-   скриптата на секоја страница) */
+/* Заеднички помошни функции за сите табови (вчитано од base.html пред скриптата на секоја страница) */
 
 // функција што го поврзува frontend-от со backend-от
 async function postJSON(url, body) {
@@ -38,7 +37,7 @@ function showError(container, err) {
     console.error(err);
 }
 
-// Enter = испрати, Shift+Enter = нов ред (како секоја чет-апликација)
+// Enter = испрати, Shift+Enter = нов ред
 function attachEnterSubmit(textarea, form) {
     textarea.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {

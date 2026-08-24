@@ -14,7 +14,7 @@ class ChatRequest(BaseModel):
 
 class LawyerRequest(BaseModel):
     question: str
-    mode: str = "laws"   # "laws" = закони + пракса, "cases" = само пракса
+    mode: str = "laws"  # "laws" = закони + пракса, "cases" = само пракса
 
 
 class SimTurnRequest(BaseModel):

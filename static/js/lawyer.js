@@ -54,11 +54,11 @@ form.addEventListener("submit", async (e) => {
     addMessage(win, question, "user");
     textarea.value = "";
     sendBtn.disabled = true;
-    const thinking = addMessage(win, "Пребарувам закони и пракса…", "bot");
+    const thinking = addMessage(win, "Пребарувам закони и пракса", "bot");
     thinking.classList.add("msg-thinking");
 
     try {
-        const data = await postJSON("/api/lawyer", { question });
+        const data = await postJSON("/api/lawyer", {question});
         thinking.remove();
         renderAnswer(data);
     } catch (err) {

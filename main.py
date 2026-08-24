@@ -4,7 +4,7 @@ Serves the four interfaces (Jinja2 templates + static files) and includes the
 JSON API routers. Run with:  uvicorn main:app --reload
 """
 import app.config  # noqa: F401  — loads .env + the TLS fix FIRST (order matters)
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -23,8 +23,12 @@ app.state.limiter = limiter
 
 @app.exception_handler(RateLimitExceeded)
 def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(status_code=429, content={
+    return JSONResponse(status_code=status.HTTP_429_TOO_MANY_REQUESTS, content={
         "detail": "Премногу барања за кратко време — почекајте минута и обидете се повторно."})
+
+@app.get("/health", include_in_schema=False, name="health")
+async def get_health(request: Request):
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
 
 # all the HTML template responses are here
 @app.get("/", response_class=HTMLResponse, include_in_schema=False, name="home")

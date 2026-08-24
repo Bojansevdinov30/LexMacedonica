@@ -68,14 +68,15 @@ similarity, framed honestly as statistics over past cases, **not legal advice**.
 ## RAG conventions
 
 - Chunking: RecursiveCharacterTextSplitter ~800 tokens, ~15 % overlap (semantic chunking = later experiment).
-- **Two-stage retrieval**: stage 1 searches per-case LLM summaries ("what is the case about",
-  `app/ingest/summarize.py`, index `data/summaries.index`) → top-12 candidate cases; stage 2 = BM25 + vectors
-  → RRF fusion restricted to those cases → **top-3 chunks** to the LLM. Probability + citations use the
-  stage-1 (situation-level) ranking and the case summaries.
+- **Corpus-wide retrieval**: BM25 + vectors over all chunks → RRF top-30 → local multilingual cross-encoder
+  reranks the first 10 → **top-3 chunks** to the LLM. The top three may come from the same case.
+  Probability deduplicates only the reranked ten by case, uses up to five merits cases, and weights their
+  real outcomes by each case's best reranker relevance score. RRF is the safe fallback if the model fails.
 - **Conversation memory**: no server sessions — the browser keeps the chat history and sends it along;
-  the backend condenses follow-ups into standalone questions (cheap LLM call) before retrieval/caching.
+  deterministic checks and a cheap LLM first validate every question, and the backend condenses it only
+  when history exists. Valid standalone wording is left unchanged.
 - Verification is folded INTO the answer prompt (single LLM call, rule „САМОПРОВЕРКА“); the old two-call
-  answer + separate self-check path is kept commented in `chains.py`. If max summary similarity below
+  answer + separate self-check path is kept commented in `chains.py`. If max chunk similarity below
   threshold → honest **"Не знам"** answer, never hallucinate.
 - All prompts and UI text in Macedonian.
 

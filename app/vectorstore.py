@@ -4,6 +4,8 @@ from functools import lru_cache
 from app.config import CHROMA_DIR
 import chromadb
 from chromadb.config import Settings
+
+
 # Chroma writes to data/chroma/chroma.sqlite3
 @lru_cache(maxsize=1)
 def _client():

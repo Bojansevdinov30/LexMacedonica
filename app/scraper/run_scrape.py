@@ -14,9 +14,7 @@ import argparse
 from app.scraper.sudmk import SudMkScraper, COURTS, append_metadata
 
 
-def scrape_court(court_key: str, prefix: str, date_from: str, date_to: str,
-                 limit: int) -> int:
-    """One fresh session per court (the server session is sticky)."""
+def scrape_court(court_key: str, prefix: str, date_from: str, date_to: str, limit: int) -> int:
     scraper = SudMkScraper()
     scraper.open_search_page()
 

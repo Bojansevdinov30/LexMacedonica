@@ -1,8 +1,4 @@
-"""Download official consolidated law texts (PDFs) into data/laws/.
-
-Sources are ministry sites (mtsp.gov.mk etc.). Add more entries to LAWS as the
-corpus grows — build_laws.py will pick up any PDF in data/laws/ automatically.
-"""
+"""Download official consolidated law texts (PDFs) into data/laws/."""
 import app.config  # noqa: F401  (TLS fix must load before requests)
 
 import requests

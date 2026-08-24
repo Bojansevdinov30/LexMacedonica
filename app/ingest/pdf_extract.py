@@ -1,8 +1,4 @@
-"""PDF → plain text with PyMuPDF.
-
-Court PDFs from sud.mk are digitally generated (not scanned), so get_text()
-gives clean Cyrillic. We only normalize whitespace a little.
-"""
+"""PDF → plain text with PyMuPDF."""
 from pathlib import Path
 
 import pymupdf

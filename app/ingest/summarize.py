@@ -1,13 +1,4 @@
-"""Per-case summaries: "what is this case ABOUT" — the fix for keyword noise.
-
-Problem this solves: chunk search matches words, not situations. A case that
-mentions "куче" once in a witness statement would surface for a dog question.
-Solution: an LLM writes a 2-3 sentence summary of every case ONCE (what kind
-of dispute, what the plaintiff wants, key facts). Retrieval then searches
-summaries FIRST to pick candidate cases, and only then finds the best
-passages inside those cases (see retriever.py). This is called two-stage /
-hierarchical retrieval.
-
+"""Per-case summaries: "what is this case ABOUT"
 Run:  python -m app.ingest.summarize          (only summarizes what's missing)
 """
 from __future__ import annotations
@@ -15,7 +6,7 @@ from __future__ import annotations
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
-
+from app.vectorstore import clean_meta, collection
 from app.config import CHAT_MODEL, DATA_DIR, EMBEDDING_MODEL, TXT_DIR
 
 from app.ingest.structure import Case, get_engine
@@ -74,7 +65,6 @@ def generate_missing_summaries() -> None:
 
 def sync_summaries_to_chroma() -> None:
     """Embed only the case summaries Chroma doesn't have yet, then add them."""
-    from app.vectorstore import clean_meta, collection
 
     engine = get_engine()
     with Session(engine) as session:

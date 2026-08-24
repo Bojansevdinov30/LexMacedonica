@@ -18,7 +18,6 @@ def lookup(query_vector: list[float]) -> dict | None:
         return json.loads(r["documents"][0][0])
     return None
 
-
 def store(query_vector: list[float], response: dict) -> None:
     collection("semantic_cache").add(
         ids=[uuid.uuid4().hex],

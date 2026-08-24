@@ -21,7 +21,7 @@ function addTurn(turn) {
     div.appendChild(text);
 
     courtroom.appendChild(div);
-    div.scrollIntoView({ behavior: "smooth", block: "end" });
+    div.scrollIntoView({behavior: "smooth", block: "end"});
     return div;
 }
 
@@ -39,15 +39,16 @@ statusEl се трга штом учесникот почне да зборув�
 async function streamTurn(scenario, history, statusEl) {
     const res = await fetch("/api/simulate/turn", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario, history }),
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({scenario, history}),
     });
     if (!res.ok) {   // пр. 429 од rate-limitot — стигнува ПРЕД стримот
         const err = new Error(`HTTP ${res.status}`);
         try {
             const data = await res.json();
             if (data.detail) err.userMessage = data.detail;
-        } catch (_) { /* нема JSON тело */ }
+        } catch (_) { /* нема JSON тело */
+        }
         throw err;
     }
 
@@ -57,9 +58,9 @@ async function streamTurn(scenario, history, statusEl) {
     let turnDiv = null, textDiv = null, final = null;
 
     while (true) {
-        const { done, value } = await reader.read();
+        const {done, value} = await reader.read();
         if (done) break;
-        buf += decoder.decode(value, { stream: true });
+        buf += decoder.decode(value, {stream: true});
 
         // транспортот се сече САМО на цели линии — \n внатре во JSON
         // стринговите се escape-ирани од серверот и не смета
@@ -72,11 +73,11 @@ async function streamTurn(scenario, history, statusEl) {
 
             if (ev.type === "meta") {
                 statusEl.remove();
-                turnDiv = addTurn({ role: ev.role, name: ev.name, icon: ev.icon, text: "" });
+                turnDiv = addTurn({role: ev.role, name: ev.name, icon: ev.icon, text: ""});
                 textDiv = turnDiv.querySelector(".sim-text");
             } else if (ev.type === "token" && textDiv) {
                 textDiv.textContent += ev.text;
-                turnDiv.scrollIntoView({ block: "end" });
+                turnDiv.scrollIntoView({block: "end"});
             } else if (ev.type === "final") {
                 final = ev;
                 if (textDiv) textDiv.textContent = ev.text;  // нормализиран целосен текст
@@ -106,7 +107,7 @@ form.addEventListener("submit", async (e) => {
             status.remove();   // но-оп ако веќе е тргнат од meta-настанот
 
             if (!turn || !turn.text) break;
-            history.push({ role: turn.role, text: turn.text });
+            history.push({role: turn.role, text: turn.text});
             if (turn.done) break;
         }
         addStatus("— Судењето заврши —");

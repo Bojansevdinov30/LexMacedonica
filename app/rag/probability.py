@@ -1,4 +1,4 @@
-"""Outcome probability from similar past cases."""
+"""Similarity-weighted outcome statistic from reranked real court cases."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,9 +22,9 @@ READABLE = {
 
 @dataclass
 class ProbabilityEstimate:
-    outcome: str            # dominant outcome label
+    outcome: str  # dominant outcome label
     outcome_readable: str
-    percent: int            # weighted share of that outcome, 0-100
+    percent: int  # weighted share of that outcome, 0-100
     counts: dict[str, int]  # raw outcome counts among the sample
     sample_size: int
 
@@ -38,8 +38,6 @@ def estimate(result: RetrievalResult) -> ProbabilityEstimate | None:
         outcome = case.metadata.get("outcome", "НЕПОЗНАТО")
         if outcome in NON_MERITS:
             continue
-        # similarity of the case SUMMARY to the user's situation — cases that
-        # match the situation better influence the estimate more
         weight = max(case.similarity, 0.001)
         weighted[outcome] = weighted.get(outcome, 0.0) + weight
         counts[outcome] = counts.get(outcome, 0) + 1

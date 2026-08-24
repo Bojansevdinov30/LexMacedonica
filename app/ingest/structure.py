@@ -1,10 +1,4 @@
-"""Structured metadata out of court decision text + the SQLite schema.
-
-The probability feature needs a machine-readable OUTCOME per case. Macedonian
-decisions are formulaic: right after the "ПРЕСУДА"/"РЕШЕНИЕ" header comes the
-dispositive (изрека) with standard phrases. Regex catches most of them for
-free; the few misses can later go through a cheap LLM fallback.
-"""
+"""Structured metadata out of court decision text + the SQLite schema."""
 from __future__ import annotations
 
 import re
@@ -32,7 +26,7 @@ class Case(Base):
     outcome_sentence: Mapped[str] = mapped_column(Text, default="")
     preview: Mapped[str] = mapped_column(Text, default="")
     summary: Mapped[str] = mapped_column(Text, default="")      # LLM summary
-    # секцијата «Повеќе податоци» од sud.mk:
+    # «Повеќе податоци»
     judge: Mapped[str] = mapped_column(String(120), default="")
     legal_area: Mapped[str] = mapped_column(String(80), default="")
     case_type: Mapped[str] = mapped_column(String(80), default="")
@@ -42,9 +36,6 @@ class Case(Base):
 
 
 def ensure_case_columns(engine) -> None:
-    """SQLite migration: create_all never ADDS columns to an existing table,
-    so compare the live schema with the model and ALTER TABLE the gap.
-    (Generalization of the old ensure_summary_column from summarize.py.)"""
     with engine.connect() as conn:
         live = {r[1] for r in conn.execute(sql_text("PRAGMA table_info(cases)"))}
         for col in Case.__table__.columns:

@@ -17,10 +17,10 @@ ODLUKI_URL = "http://www.sud.mk/wps/portal/central/sud/odluki"
 
 LEGAL_AREA = {"civil": "2", "criminal": "1", "administrative": "3"}
 TYPE_OF_CASE = {
-    "labor": "98",          # Работни спорови
-    "obligations": "177",   # Облигациони спорови
-    "civil_disputes": "90", # Граѓански спорови
-    "small_claims": "93",   # Граѓански спорови од мала вредност
+    "labor": "98",  # Работни спорови
+    "obligations": "177",  # Облигациони спорови
+    "civil_disputes": "90",  # Граѓански спорови
+    "small_claims": "93",  # Граѓански спорови од мала вредност
 }
 
 # GUIDs from the court <select> on the site.
@@ -57,24 +57,24 @@ class CaseResult:
     date: str
     preview: str
     download_href: str
-    # from the collapsed «Повеќе податоци» section of each result box;
-    judge: str = ""            # Судија
-    legal_area: str = ""       # Правна област
-    case_type: str = ""        # Вид предмет
-    case_subtype: str = ""     # Подвид предмет
+    # from «Повеќе податоци»
+    judge: str = ""  # Судија
+    legal_area: str = ""  # Правна област
+    case_type: str = ""  # Вид предмет
+    case_subtype: str = ""  # Подвид предмет
     foundation_type: str = ""  # Вид основ
-    foundation: str = ""       # Основ
+    foundation: str = ""  # Основ
 
 
 class SudMkScraper:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
-        self.page_url: str | None = None       # URL the search page ended up on
-        self.form_action: str | None = None    # session-encoded POST target
+        self.page_url: str | None = None  # URL the search page ended up on
+        self.form_action: str | None = None  # session-encoded POST target
         self.base_fields: dict[str, str] = {}  # every form field with defaults
 
-    # ---------- step 1: open the page, capture session + form ----------
+    # ---------- open the page, capture session + form ----------
 
     def open_search_page(self) -> None:
         resp = self.session.get(ODLUKI_URL, timeout=30)
@@ -120,7 +120,7 @@ class SudMkScraper:
                 fields[name] = ta.get_text()
         self.base_fields = fields
 
-    # ---------- step 2+4: search & paginate ----------
+    # ---------- search & paginate ----------
 
     def search(self, page: int = 1, **filters: str) -> tuple[list[CaseResult], int | None]:
         """POST the search form. Returns (results, total_count)."""
@@ -173,11 +173,7 @@ class SudMkScraper:
                     label = label_el.get_text(strip=True).rstrip(" :")
                     values[label] = value_el.get_text(strip=True)
 
-            # «Повеќе податоци» — the collapsed extra-data section. It is
-            # ALREADY in this same HTML (jQuery only toggles its visibility),
-            # so no extra request is needed. Select by CLASS scoped to this
-            # box: the portal reuses the same id= on every result box, so
-            # document-wide id lookups would always hit the first box only.
+            # «Повеќе податоци» — the collapsed extra-data section.
             extended: dict[str, str] = {}
             for cell in box.select("div.smkContentToggle div.cell50"):
                 label_el = cell.select_one("h5")
@@ -205,7 +201,7 @@ class SudMkScraper:
             ))
         return results, total
 
-    # ---------- step 5: download the PDF ----------
+    # ---------- download the PDF ----------
 
     def download_case(self, result: CaseResult, dest_dir: Path = RAW_PDF_DIR) -> Path | None:
         dest_dir.mkdir(parents=True, exist_ok=True)

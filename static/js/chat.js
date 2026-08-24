@@ -96,7 +96,9 @@ function renderAnswer(data) {
         track.appendChild(fill);
         div.appendChild(track);
         // small delay so the CSS width transition animates
-        setTimeout(() => { fill.style.width = data.probability + "%"; }, 50);
+        setTimeout(() => {
+            fill.style.width = data.probability + "%";
+        }, 50);
     }
 
     for (const c of data.cases || []) {
@@ -119,11 +121,13 @@ form.addEventListener("submit", async (e) => {
     thinking.classList.add("msg-thinking");
 
     try {
-        const data = await postJSON("/api/chat", { question, history });
+        const data = await postJSON("/api/chat", {question, history});
         thinking.remove();
         renderAnswer(data);
-        history.push({ who: "user", text: question });
-        history.push({ who: "bot", text: data.answer });
+        if(data.answer !== "Невалидно поставено прашање. Обидете се повторно.") {
+            history.push({who: "user", text: question});
+            history.push({who: "bot", text: data.answer});
+        }
     } catch (err) {
         thinking.remove();
         showError(chatWindow, err);

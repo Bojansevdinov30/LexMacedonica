@@ -15,6 +15,7 @@ chromadb
 numpy
 rank_bm25
 tiktoken
+sentence-transformers
 
 # Data pipeline
 pymupdf
@@ -26,4 +27,3 @@ sqlalchemy
 python-dotenv
 pydantic-settings
 truststore
-
