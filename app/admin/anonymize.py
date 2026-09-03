@@ -112,7 +112,7 @@ def anonymize(text: str) -> dict:
                 replacement = str(r.get("replacement", "«XXX»"))
                 replacements.append({"original": original,
                                      "replacement": replacement,
-                                     "method": "АИ (име/адреса/фирма)"})
+                                     "method": "ВИ (име/адреса/фирма)"})
                 result = result.replace(original, replacement)
     except json.JSONDecodeError:
         reasoning = "Грешка при читање на АИ-одговорот; применети се само правилата."

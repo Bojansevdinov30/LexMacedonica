@@ -222,8 +222,7 @@ body {
     background: transparent;
 }
 
-/* едно правило за двете копчиња (чет + админ) — порано беа две речиси
-   идентични дефиниции; старата верзија: other/static/css/style.css */
+/* едно правило за двете копчиња (чет + админ) */
 .chat-input button,
 .smk-button {
     background: var(--navy);

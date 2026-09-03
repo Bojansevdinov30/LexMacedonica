@@ -1,7 +1,6 @@
 """Pydantic request models for the JSON API.
 
-One flat file (as in classic FastAPI projects): the frontend sends small JSON
-bodies, so every request shape is defined here and imported by the routers.
+every request shape is defined here and imported by the routers.
 """
 from pydantic import BaseModel
 

@@ -15,7 +15,7 @@ def lookup(query_vector: list[float]) -> dict | None:
     r = col.query(query_embeddings=[query_vector], n_results=1,
                   include=["documents", "distances"])
     if r["distances"][0] and sim(r["distances"][0][0]) >= SEMANTIC_CACHE_THRESHOLD:
-        return json.loads(r["documents"][0][0])
+        return json.loads(r["documents"][0][0]) #json.loads converts JSON to python dict
     return None
 
 def store(query_vector: list[float], response: dict) -> None:

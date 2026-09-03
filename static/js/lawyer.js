@@ -13,7 +13,7 @@ function renderAnswer(data) {
         const details = document.createElement("details");
         details.className = "reasoning";
         const summary = document.createElement("summary");
-        summary.textContent = "🧠 Резонирање на моделот";
+        summary.textContent = "Резонирање на моделот";//"🧠 Резонирање на моделот";
         details.appendChild(summary);
         const body = document.createElement("div");
         body.className = "reasoning-body";
@@ -36,7 +36,7 @@ function renderAnswer(data) {
             src.appendChild(document.createTextNode(" "));
             const chip = document.createElement("span");
             chip.className = "source-chip";
-            chip.textContent = `${s.type === "закон" ? "📜" : "⚖️"} ${s.ref}`;
+            chip.textContent = s.ref; //`${s.type === "закон" ? "📜" : "⚖️"} ${s.ref}`;
             src.appendChild(chip);
         }
         div.appendChild(src);
