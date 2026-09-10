@@ -12,7 +12,7 @@ function addTurn(turn) {
 
     const role = document.createElement("div");
     role.className = "sim-role";
-    role.textContent = `${turn.icon} ${turn.name}`;
+    role.textContent = turn.name;
     div.appendChild(role);
 
     const text = document.createElement("div");
@@ -73,7 +73,7 @@ async function streamTurn(scenario, history, statusEl) {
 
             if (ev.type === "meta") {
                 statusEl.remove();
-                turnDiv = addTurn({role: ev.role, name: ev.name, icon: ev.icon, text: ""});
+                turnDiv = addTurn({role: ev.role, name: ev.name, text: ""});
                 textDiv = turnDiv.querySelector(".sim-text");
             } else if (ev.type === "token" && textDiv) {
                 textDiv.textContent += ev.text;

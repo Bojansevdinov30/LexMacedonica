@@ -9,10 +9,10 @@ from app.config import CHAT_MODEL
 
 
 ROLES = {
-    "narrator": ("Наратор", "🎙️"),
-    "plaintiff": ("Адвокат на тужителот", "⚖️"),
-    "defendant": ("Адвокат на тужениот", "🛡️"),
-    "judge": ("Судија", "👨‍⚖️"),
+    "narrator": "Наратор",
+    "plaintiff": "Адвокат на тужителот",
+    "defendant": "Адвокат на тужениот",
+    "judge": "Судија",
 }
 
 # the fixed courtroom script
@@ -55,7 +55,7 @@ def next_turn(scenario: str, history: list[dict]) -> dict | None:
     role = SCRIPT[step]
 
     transcript = "\n\n".join(
-        f"{ROLES[h['role']][0]}: {h['text']}" for h in history
+        f"{ROLES[h['role']]}: {h['text']}" for h in history
     ) or "(судењето штотуку почнува)"
 
     response = _sim_llm().invoke([
@@ -65,8 +65,8 @@ def next_turn(scenario: str, history: list[dict]) -> dict | None:
                  f"Твојот настап сега:"),
     ])
 
-    name, icon = ROLES[role]
-    return {"role": role, "name": name, "icon": icon,
+    name = ROLES[role]
+    return {"role": role, "name": name,
             "text": response.content.strip(),
             "done": step + 1 >= len(SCRIPT)}
 
@@ -78,11 +78,11 @@ def stream_turn(scenario: str, history: list[dict]):
         yield {"type": "final", "text": "", "done": True}
         return
     role = SCRIPT[step]
-    name, icon = ROLES[role]
-    yield {"type": "meta", "role": role, "name": name, "icon": icon}
+    name = ROLES[role]
+    yield {"type": "meta", "role": role, "name": name}
 
     transcript = "\n\n".join(
-        f"{ROLES[h['role']][0]}: {h['text']}" for h in history
+        f"{ROLES[h['role']]}: {h['text']}" for h in history
     ) or "(судењето штотуку почнува)"
 
     pieces: list[str] = []
@@ -96,6 +96,6 @@ def stream_turn(scenario: str, history: list[dict]):
             pieces.append(chunk.content)
             yield {"type": "token", "text": chunk.content}
 
-    yield {"type": "final", "role": role, "name": name, "icon": icon,
+    yield {"type": "final", "role": role, "name": name,
            "text": "".join(pieces).strip(),
            "done": step + 1 >= len(SCRIPT)}
