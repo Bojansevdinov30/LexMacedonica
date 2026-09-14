@@ -91,8 +91,7 @@ def answer_question(question: str, history: list[dict] | None = None) -> dict:
     question = " ".join(question.split())
     preparation_started = time.perf_counter()
 
-    # Validation is intentionally separate from condensation: a valid
-    # standalone question reaches retrieval with its wording unchanged.
+    # Validation
     if not validate_question(question, has_history=bool(history)):
         print(f"[chain] rejected in {time.perf_counter() - request_started:.3f}s")
         return {
@@ -104,8 +103,7 @@ def answer_question(question: str, history: list[dict] | None = None) -> dict:
     if history:
         question = _condense(question, history)
     print(f"[validation] accepted in {time.perf_counter() - preparation_started:.3f}s")
-    # 1. semantic cache (keyed on the standalone question, so follow-ups
-    #    that mean the same thing still hit)
+    # 1. semantic cache
     embedding_started = time.perf_counter()
     qvec = embed_query(question)
     print(f"[chain] embedding={time.perf_counter() - embedding_started:.3f}s")
@@ -115,16 +113,16 @@ def answer_question(question: str, history: list[dict] | None = None) -> dict:
         print(f"[chain] cache hit; total={time.perf_counter() - request_started:.3f}s")
         return cached
 
-    # 2. retrieval — reusing the vector we just paid for in step 1
+    # 2. retrieval — reusing the paid vector
     result = retrieve(question, query_vector=qvec)
 
-    # Debug: unique cases derived only from the hardware-limited reranked head.
+    # Debug
     print(f"[слични предмети] прашање: {question!r}")
     for case in result.top_cases(3):
         m = case.metadata
         print(f"  {case.similarity:.3f}  {m['case_number']} ({m['court']}, {m['date']})")
 
-    # 3. confidence gate — better an honest "не знам" than a hallucination
+    # 3. confidence gate
     if result.max_similarity < MIN_SIMILARITY_FOR_ANSWER or not result.chunks:
         print(f"[chain] similarity gate; total={time.perf_counter() - request_started:.3f}s")
         return dict(NO_ANSWER)
